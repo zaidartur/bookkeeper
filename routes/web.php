@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\MaintenanceController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -24,6 +25,8 @@ Route::get('/', function () {
 Route::prefix('/')->middleware('auth')->group(function() {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 });
+
+Route::get('/input-maintenance', [MaintenanceController::class, 'input_form'])->name('mtc.form');
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');

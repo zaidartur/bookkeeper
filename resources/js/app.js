@@ -30,6 +30,8 @@ import ConfirmDialog from 'primevue/confirmdialog';
 import ConfirmPopup from 'primevue/confirmpopup';
 import Dialog from 'primevue/dialog';
 import AnimateOnScroll from 'primevue/animateonscroll';
+import DatePicker from 'primevue/datepicker';
+import Textarea from 'primevue/textarea';
 
 import '@/assets/styles.scss';
 import '@/assets/tailwind.css';
@@ -77,6 +79,8 @@ createInertiaApp({
             .component('Timeline', Timeline)
             .component('Chart', Chart)
             .component('Dialog', Dialog)
+            .component('DatePicker', DatePicker)
+            .component('Textarea', Textarea)
 
             .component('Head', Head)
             .component('Link', Link)

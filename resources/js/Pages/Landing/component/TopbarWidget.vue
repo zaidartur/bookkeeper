@@ -1,4 +1,11 @@
 <script setup>
+import { defineProps, ref, onMounted  } from 'vue';
+import { Link } from '@inertiajs/vue3';
+
+const datas = defineProps({
+    auth: Object
+})
+
 function smoothScroll(id) {
     document.body.click();
     const element = document.getElementById(id);
@@ -8,6 +15,27 @@ function smoothScroll(id) {
             block: 'start'
         });
     }
+}
+
+const isMtc = ref(false)
+
+const _home = () => {
+    location.href =  '/dashboard'
+}
+
+const _maintenance = () => {
+    location.href = '/input-maintenance'
+}
+
+const _login = () => {
+    location.href =  '/login'
+}
+
+const queryString = window.location.href;
+if (queryString.includes('input-maintenance')) {
+    isMtc.value = true
+} else {
+    isMtc.value = false
 }
 </script>
 
@@ -43,30 +71,40 @@ function smoothScroll(id) {
     </Button>
     <div class="items-center bg-surface-0 dark:bg-surface-900 grow justify-between hidden lg:flex absolute lg:static w-full left-0 top-full px-12 lg:px-0 z-20 rounded-border">
         <ul class="list-none p-0 m-0 flex lg:items-center select-none flex-col lg:flex-row cursor-pointer gap-8">
-            <li>
+            <li v-if="!isMtc">
                 <a @click="smoothScroll('hero')" class="px-0 py-4 text-surface-900 dark:text-surface-0 font-medium text-xl">
                     <span>Home</span>
                 </a>
             </li>
-            <li>
+            <li v-if="!isMtc">
                 <a @click="smoothScroll('features')" class="px-0 py-4 text-surface-900 dark:text-surface-0 font-medium text-xl">
                     <span>Features</span>
                 </a>
             </li>
-            <li>
+            <li v-if="!isMtc">
                 <a @click="smoothScroll('highlights')" class="px-0 py-4 text-surface-900 dark:text-surface-0 font-medium text-xl">
                     <span>Highlights</span>
                 </a>
             </li>
-            <li>
+            <li v-if="!isMtc">
                 <a @click="smoothScroll('pricing')" class="px-0 py-4 text-surface-900 dark:text-surface-0 font-medium text-xl">
-                    <span>Pricing</span>
+                    <span>Jaringan</span>
                 </a>
+            </li>
+            <li v-if="isMtc">
+                <Link href="/" class="px-0 py-4 text-surface-900 dark:text-surface-0 font-medium text-xl">
+                    Landing
+                </Link>
+            </li>
+            <li :class="isMtc ? 'inline-flex items-center px-1 pt-1 border-b-2 border-indigo-400 text-sm font-medium leading-5 text-gray-900 focus:outline-none focus:border-indigo-700 transition duration-150 ease-in-out' : ''">
+                <Link href="/input-maintenance" class="px-0 py-4 text-surface-900 dark:text-surface-0 font-medium text-xl">
+                    Maintenance
+                </Link>
             </li>
         </ul>
         <div class="flex border-t lg:border-t-0 border-surface py-4 lg:py-0 mt-4 lg:mt-0 gap-2">
-            <Button label="Login" text as="router-link" to="/auth/login" rounded></Button>
-            <Button label="Register" to="/auth/login" rounded></Button>
+            <Button label="Ke Dashboard" to="/dashboard" @click="_home()" rounded v-if="datas.auth"></Button>
+            <Button label="Login" to="/login" @click="_login()" rounded v-if="!datas.auth"></Button>
         </div>
     </div>
 </template>

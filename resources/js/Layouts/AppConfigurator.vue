@@ -105,8 +105,9 @@ if (localStorage.getItem('preset') !== null) {
 }
 if (localStorage.getItem('menu') !== null) {
     const _menu = localStorage.getItem('menu')
-    menuMode.value = JSON.parse(_menu)
-    setMenuMode(JSON.parse(_menu))
+    layoutConfig.menuMode = JSON.parse(_menu)
+    
+    onMenuModeChange()
 }
 
 function getPresetExt() {
