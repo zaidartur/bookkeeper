@@ -14,6 +14,7 @@ import Password from 'primevue/password';
 import Button from 'primevue/button';
 import Checkbox from 'primevue/checkbox';
 import Toast from 'primevue/toast';
+import Card from 'primevue/card';
 import ToastService from 'primevue/toastservice';
 import ConfirmationService from 'primevue/confirmationservice';
 import DialogService from 'primevue/dialogservice';
@@ -32,6 +33,12 @@ import Dialog from 'primevue/dialog';
 import AnimateOnScroll from 'primevue/animateonscroll';
 import DatePicker from 'primevue/datepicker';
 import Textarea from 'primevue/textarea';
+import Tag from 'primevue/tag';
+
+import DataTable from 'primevue/datatable';
+import Column from 'primevue/column';
+import ColumnGroup from 'primevue/columngroup';
+import Row from 'primevue/row';  
 
 import '@/assets/styles.scss';
 import '@/assets/tailwind.css';
@@ -81,6 +88,12 @@ createInertiaApp({
             .component('Dialog', Dialog)
             .component('DatePicker', DatePicker)
             .component('Textarea', Textarea)
+            .component('Card', Card)
+            .component('DataTable', DataTable)
+            .component('Column', Column)
+            .component('ColumnGroup', ColumnGroup)
+            .component('Row', Row)
+            .component('Tag', Tag)
 
             .component('Head', Head)
             .component('Link', Link)

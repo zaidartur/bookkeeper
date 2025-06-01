@@ -9,10 +9,18 @@ const model = ref([
         items: [{ label: 'Dashboard', icon: 'pi pi-fw pi-home', to: '/dashboard' }]
     },
     {
+        label: 'Input',
+        items: [
+            { label: 'Maintenance', icon: 'pi pi-fw pi-id-card', to: '/maintenance' },
+            { label: 'Trouble', icon: 'pi pi-fw pi-id-card', to: '/trouble' },
+            { label: 'IP Address', icon: 'pi pi-fw pi-check-square', to: '/uikit/input' },
+        ]
+    },
+    {
         label: 'Report',
         items: [
             { label: 'Laporan Maintenance', icon: 'pi pi-fw pi-id-card', to: '/uikit/formlayout' },
-            { label: 'Laporan Lain', icon: 'pi pi-fw pi-check-square', to: '/uikit/input' },
+            { label: 'Laporan Buku Tamu', icon: 'pi pi-fw pi-check-square', to: '/uikit/input' },
         ]
     },
     {

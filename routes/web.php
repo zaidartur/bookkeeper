@@ -24,9 +24,16 @@ Route::get('/', function () {
 
 Route::prefix('/')->middleware('auth')->group(function() {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
-});
 
-Route::get('/input-maintenance', [MaintenanceController::class, 'input_form'])->name('mtc.form');
+    Route::prefix('/maintenance')->group(function() {
+        Route::get('/', [MaintenanceController::class, 'view'])->name('maintenance');
+        Route::get('/input-maintenance', [MaintenanceController::class, 'input_form'])->name('mtc.form');
+    });
+
+    Route::prefix('/trouble')->group(function() {
+        Route::get('/', [MaintenanceController::class, 'trouble'])->name('trouble');
+    });
+});
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');

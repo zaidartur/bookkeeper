@@ -97,8 +97,8 @@ if (queryString.includes('input-maintenance')) {
                 </Link>
             </li>
             <li :class="isMtc ? 'inline-flex items-center px-1 pt-1 border-b-2 border-indigo-400 text-sm font-medium leading-5 text-gray-900 focus:outline-none focus:border-indigo-700 transition duration-150 ease-in-out' : ''">
-                <Link href="/input-maintenance" class="px-0 py-4 text-surface-900 dark:text-surface-0 font-medium text-xl">
-                    Maintenance
+                <Link href="/buku-tamu" class="px-0 py-4 text-surface-900 dark:text-surface-0 font-medium text-xl">
+                    Buku Tamu
                 </Link>
             </li>
         </ul>
