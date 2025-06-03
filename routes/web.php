@@ -36,6 +36,7 @@ Route::prefix('/')->middleware('auth')->group(function() {
 });
 
 Route::get('/buku-tamu', [DashboardController::class, 'guestbook'])->name('guestbook');
+Route::post('/buku-tamu/save-form', [DashboardController::class, 'save_guest'])->name('guestbook.save');
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');

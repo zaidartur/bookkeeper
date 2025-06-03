@@ -13,6 +13,16 @@ return new class extends Migration
     {
         Schema::create('maintenances', function (Blueprint $table) {
             $table->id();
+            $table->string('uuid', '64')->unique();
+            $table->date('tanggal_mulai');
+            $table->string('jam_mulai');
+            $table->string('judul');
+            $table->string('deskripsi');
+            $table->text('alur_perawatan');
+            $table->text('problem')->nullable();
+            $table->text('petugas');
+            $table->text('foto')->nullable();
+            $table->string('user_id', '64');
             $table->timestamps();
         });
     }

@@ -86,6 +86,7 @@ const requireConfirmation = () => {
         accept: () => {
             console.log(form)
             toast.add({ severity: 'info', summary: 'Confirmed', detail: 'You have accepted', life: 3000 });
+            // formSubmit()
         },
         reject: () => {
             toast.add({ severity: 'error', summary: 'Rejected', detail: 'You have rejected', life: 3000 });
@@ -110,14 +111,22 @@ const onFormBeforeSubmit = ({ valid }) => {
 };
 
 const formSubmit = () => {
-    const _url = '/save-form'
+    const _url = '/buku-tamu/save-form'
     form.post(_url, {
         resetOnSuccess: true,
         onSuccess: (res) => {
-            //
+            if (res.status === 'success') {
+                toast.add({ severity: 'info', summary: 'Confirmed', detail: 'Data berhasil disimpan', life: 3000 });
+                form.reset()
+                tgl_datang.value = null
+                jam_masuk.value  = null
+                jam_keluar.value = null
+            } else {
+                toast.add({ severity: 'error', summary: 'Error', detail: 'Gagal menyimpan data', life: 3000 });
+            }
         },
         onError: () => {
-            //
+            toast.add({ severity: 'error', summary: 'Error', detail: 'Terjadi kegagalan pada sistem', life: 3000 });
         }
     })
 }

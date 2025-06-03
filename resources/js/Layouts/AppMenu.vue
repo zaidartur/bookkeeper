@@ -21,6 +21,7 @@ const model = ref([
         items: [
             { label: 'Laporan Maintenance', icon: 'pi pi-fw pi-id-card', to: '/uikit/formlayout' },
             { label: 'Laporan Buku Tamu', icon: 'pi pi-fw pi-check-square', to: '/uikit/input' },
+            { label: 'Inventaris Ruangan', icon: 'pi pi-fw pi-check-square', to: '/uikit/input' },
         ]
     },
     {
@@ -31,6 +32,11 @@ const model = ref([
             {
                 label: 'Data Admin',
                 icon: 'pi pi-fw pi-pencil',
+                to: '/pages/crud'
+            },
+            {
+                label: 'Data Petugas',
+                icon: 'pi pi-fw pi-user',
                 to: '/pages/crud'
             },
             {

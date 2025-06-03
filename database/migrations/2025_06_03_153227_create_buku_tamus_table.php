@@ -13,6 +13,13 @@ return new class extends Migration
     {
         Schema::create('buku_tamus', function (Blueprint $table) {
             $table->id();
+            $table->string('uuid', '64')->unique();
+            $table->string('nama', '150');
+            $table->string('instansi');
+            $table->date('tanggal');
+            $table->string('jam_masuk', '6');
+            $table->string('jam_keluar', '6');
+            $table->string('keperluan');
             $table->timestamps();
         });
     }
