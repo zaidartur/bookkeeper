@@ -1,6 +1,8 @@
 <script setup>
 import { defineProps, ref, onMounted  } from 'vue';
 import { Link } from '@inertiajs/vue3';
+import { useLayout } from '@/Layouts/composables/layout';
+import AppConfigurator from '@/Layouts/AppConfigurator.vue';
 
 const datas = defineProps({
     auth: Object
@@ -17,14 +19,15 @@ function smoothScroll(id) {
     }
 }
 
+const { toggleMenu, toggleDarkMode, isDarkTheme } = useLayout();
 const isMtc = ref(false)
 
 const _home = () => {
     location.href =  '/dashboard'
 }
 
-const _maintenance = () => {
-    location.href = '/input-maintenance'
+const _buku = () => {
+    location.href = '/buku-tamu'
 }
 
 const _login = () => {
@@ -32,7 +35,7 @@ const _login = () => {
 }
 
 const queryString = window.location.href;
-if (queryString.includes('input-maintenance')) {
+if (queryString.includes('buku-tamu')) {
     isMtc.value = true
 } else {
     isMtc.value = false
@@ -105,6 +108,33 @@ if (queryString.includes('input-maintenance')) {
         <div class="flex border-t lg:border-t-0 border-surface py-4 lg:py-0 mt-4 lg:mt-0 gap-2">
             <Button label="Ke Dashboard" to="/dashboard" @click="_home()" rounded v-if="datas.auth"></Button>
             <Button label="Login" to="/login" @click="_login()" rounded v-if="!datas.auth"></Button>
+
+            &nbsp;
+            <button type="button" class="layout-topbar-action" @click="toggleDarkMode" v-tooltip.bottom="isDarkTheme ? 'Light Mode' : 'Dark Mode'">
+                <i :class="['pi', { 'pi-moon': isDarkTheme, 'pi-sun': !isDarkTheme }]"></i>
+            </button>
+            &nbsp;
+            <!-- <div class="relative"> -->
+                <button
+                    v-styleclass="{ selector: '@next', enterFromClass: 'hidden', enterActiveClass: 'animate-scalein', leaveToClass: 'hidden', leaveActiveClass: 'animate-fadeout', hideOnOutsideClick: true }"
+                    type="button"
+                    class="layout-topbar-action layout-topbar-action-highlight"
+                    v-tooltip.bottom="'Ubah Tema'"
+                    rounded
+                >
+                    <i class="pi pi-palette"></i>
+                </button>
+                <AppConfigurator />
+            <!-- </div> -->
+
+            <!-- <button
+                class="layout-topbar-menu-button layout-topbar-action"
+                v-styleclass="{ selector: '@next', enterFromClass: 'hidden', enterActiveClass: 'animate-scalein', leaveToClass: 'hidden', leaveActiveClass: 'animate-fadeout', hideOnOutsideClick: true }"
+                type="button"
+                v-tooltip.bottom="'Tema'"
+            >
+                <i class="pi pi-ellipsis-v"></i>
+            </button> -->
         </div>
     </div>
 </template>

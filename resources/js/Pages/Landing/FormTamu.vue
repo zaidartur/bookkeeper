@@ -4,7 +4,7 @@ import { defineProps, ref, onMounted  } from 'vue';
 import FooterWidget from './component/FooterWidget.vue';
 import HeroWidget from './component/HeroWidget.vue';
 import LayoutWidget from './component/LayoutWidget.vue';
-import InMaintenance from './component/InMaintenance.vue'
+import InMaintenance from './component/GuestForm.vue'
 
 const datas = defineProps({
     user: Object
@@ -14,7 +14,7 @@ const datas = defineProps({
 </script>
 
 <template>
-    <Head title="Form Maintenance" />
+    <Head title="Buku Tamu" />
 
     <layout-widget :user="datas.user">
         <HeroWidget />

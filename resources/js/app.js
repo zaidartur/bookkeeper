@@ -34,6 +34,7 @@ import AnimateOnScroll from 'primevue/animateonscroll';
 import DatePicker from 'primevue/datepicker';
 import Textarea from 'primevue/textarea';
 import Tag from 'primevue/tag';
+import Divider from 'primevue/divider';
 
 import DataTable from 'primevue/datatable';
 import Column from 'primevue/column';
@@ -94,6 +95,7 @@ createInertiaApp({
             .component('ColumnGroup', ColumnGroup)
             .component('Row', Row)
             .component('Tag', Tag)
+            .component('Divider', Divider)
 
             .component('Head', Head)
             .component('Link', Link)
