@@ -7,7 +7,9 @@ import LayoutWidget from './component/LayoutWidget.vue';
 import GuestForm from './component/GuestForm.vue'
 
 const datas = defineProps({
-    user: Object
+    user: Object,
+    total: Number,
+    today: Number,
 })
 
 // console.log('ini', datas.user)
@@ -18,7 +20,7 @@ const datas = defineProps({
 
     <layout-widget :user="datas.user">
         <HeroWidget />
-        <GuestForm />
+        <GuestForm :total="datas.total" :today="datas.today" />
         <FooterWidget />
     </layout-widget>
 </template>

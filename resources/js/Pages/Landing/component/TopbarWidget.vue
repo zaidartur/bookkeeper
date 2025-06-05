@@ -1,5 +1,5 @@
 <script setup>
-import { defineProps, ref, onMounted  } from 'vue';
+import { defineProps, ref, onBeforeMount, onUpdated } from 'vue';
 import { Link } from '@inertiajs/vue3';
 import { useLayout } from '@/Layouts/composables/layout';
 import AppConfigurator from '@/Layouts/AppConfigurator.vue';

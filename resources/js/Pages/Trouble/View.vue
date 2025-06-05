@@ -26,12 +26,12 @@ const getSeverity = (tr) => {
     }
 };
 
+const addNew = ref(false)
 const icondisplay = ref();
 const templatedisplay = ref();
 const form = useForm({
     email: '',
     password: '',
-    remember: false,
 });
 
 const selectedCategory = ref();
@@ -60,6 +60,11 @@ const resolver = ref(zodResolver(
     })
 ));
 
+const showModal = () => {
+    form.reset();
+    addNew.value = true
+}
+
 const onFormSubmit = ({ valid }) => {
     console.log('form', valid)
     if (valid) {
@@ -77,7 +82,7 @@ const onFormSubmit = ({ valid }) => {
         <template #title><i class="pi pi-sitemap"></i> Data Network Trouble</template>
         <template #content>
             <div class="mt-5 mb-5">
-                <Button type="button" label="Buat Data Trouble" severity="info" icon="pi pi-plus-circle" raised />
+                <Button type="button" label="Buat Data Trouble" severity="info" icon="pi pi-plus-circle" raised @click="showModal" />
             </div>
             <div>
                 <DataTable :value="dataTrouble" paginator :rows="10" :rowsPerPageOptions="[5, 10, 20, 50]" tableStyle="min-width: 50rem">
@@ -119,73 +124,79 @@ const onFormSubmit = ({ valid }) => {
         <div>
             <h1 class="text-surface-900 dark:text-surface-0 font-normal mb-2 text-4xl text-center">Form Maintenance</h1>
         </div>
-        <Form v-slot="$form" :resolver="resolver" :initialValues="initialValues" @submit="onFormSubmit" class="flex flex-col gap-4">
-            <div class="card flex flex-wrap gap-4">
-                <div class="flex-auto">
-                    <label for="icondisplay" class="font-bold block"> Tanggal Kejadian </label>
-                    <DatePicker v-model="icondisplay" showIcon fluid iconDisplay="input" inputId="icondisplay" />
-                </div>
-                <div class="flex-auto">
-                    <label for="icondisplay" class="font-bold block">Jam Kejadian </label>
-                    <DatePicker v-model="templatedisplay" showIcon fluid iconDisplay="input" timeOnly inputId="templatedisplay">
-                        <template #inputicon="slotProps">
-                            <i class="pi pi-clock" @click="slotProps.clickCallback" />
-                        </template>
-                    </DatePicker>
-                </div>
-            </div>
-            <div class="card flex flex-wrap gap-4 -mt-20">
-                <div class="flex-auto">
-                    <label for="icondisplay" class="font-bold block"> Tanggal Selesai </label>
-                    <DatePicker v-model="icondisplay" showIcon fluid iconDisplay="input" inputId="icondisplay" />
-                </div>
-                <div class="flex-auto">
-                    <label for="icondisplay" class="font-bold block">Jam Selesai </label>
-                    <DatePicker v-model="templatedisplay" showIcon fluid iconDisplay="input" timeOnly inputId="templatedisplay">
-                        <template #inputicon="slotProps">
-                            <i class="pi pi-clock" @click="slotProps.clickCallback" />
-                        </template>
-                    </DatePicker>
-                </div>
-            </div>
-            <div class="card flex flex-wrap gap-4 -mt-20">
-                <div class="flex-auto">
-                    <label for="icondisplay" class="font-bold block"> Site/Lokasi </label>
-                    <Textarea v-model="value" rows="6" style="resize: none;" class="w-full" />
-                </div>
-                <div class="flex-auto">
-                    <label for="icondisplay" class="font-bold block"> Deskripsi Permasalahan </label>
-                    <Textarea v-model="value" rows="6" style="resize: none;" class="w-full" />
-                </div>
-            </div>
-            <div class="card flex flex-wrap gap-4 -mt-20">
-                <div class="flex-auto">
-                    <label for="icondisplay" class="font-bold block"> Kategori Permasalahan </label>
-                    <Select v-model="selectedCategory" :options="categories" optionLabel="name" placeholder="Pilih Kategori" class="w-full" />
-                </div>
-                <div class="flex-auto">
-                    <label for="icondisplay" class="font-bold block"> Petugas </label>
-                    <InputText v-model="text1" placeholder="Nama Petugas" class="w-full" />
-                </div>
-            </div>
-            <div class="card flex flex-wrap gap-4 -mt-20">
-                <div class="flex-auto">
-                    <label for="icondisplay" class="font-bold block"> Action/Solusi </label>
-                    <Textarea v-model="value" name="address" rows="6" style="resize: none;" class="w-full" />
-                    <Message v-if="$form.address?.invalid" severity="error" size="small" variant="simple">{{ $form.address.error?.message }}</Message>
-                </div>
-            </div>
-            <div class="card flex flex-wrap gap-4 -mt-20">
-                <div class="flex-auto">
-                    <label for="" class="font-bold block"> Status </label>
-                    <Select v-model="selectedStatus" :options="status" optionLabel="name" placeholder="Pilih Status" class="w-full" />
-                </div>
-            </div>
-            <div class="card flex flex-wrap gap-4 -mt-20">
-                <div class="flex-auto">
-                    <Button type="submit" label="Success" severity="success" raised />
-                </div>
-            </div>
-        </Form>
+        
     </div>
+
+    <Dialog v-model:visible="addNew" maximizable modal header="Input Trouble/Masalah Baru" :style="{width: '50rem'}" :breakpoints="{ '1199px': '75vw', '575px': '90vw' }">
+        <div>
+            <Form v-slot="$form" :resolver="resolver" :initialValues="initialValues" @submit="onFormSubmit" class="flex flex-col gap-4">
+                <div class="card flex flex-wrap gap-4">
+                    <div class="flex-auto">
+                        <label for="icondisplay" class="font-bold block"> Tanggal Kejadian </label>
+                        <DatePicker v-model="icondisplay" showIcon fluid iconDisplay="input" inputId="icondisplay" />
+                    </div>
+                    <div class="flex-auto">
+                        <label for="icondisplay" class="font-bold block">Jam Kejadian </label>
+                        <DatePicker v-model="templatedisplay" showIcon fluid iconDisplay="input" timeOnly inputId="templatedisplay">
+                            <template #inputicon="slotProps">
+                                <i class="pi pi-clock" @click="slotProps.clickCallback" />
+                            </template>
+                        </DatePicker>
+                    </div>
+                </div>
+                <div class="card flex flex-wrap gap-4 -mt-20">
+                    <div class="flex-auto">
+                        <label for="icondisplay" class="font-bold block"> Tanggal Selesai </label>
+                        <DatePicker v-model="icondisplay" showIcon fluid iconDisplay="input" inputId="icondisplay" />
+                    </div>
+                    <div class="flex-auto">
+                        <label for="icondisplay" class="font-bold block">Jam Selesai </label>
+                        <DatePicker v-model="templatedisplay" showIcon fluid iconDisplay="input" timeOnly inputId="templatedisplay">
+                            <template #inputicon="slotProps">
+                                <i class="pi pi-clock" @click="slotProps.clickCallback" />
+                            </template>
+                        </DatePicker>
+                    </div>
+                </div>
+                <div class="card flex flex-wrap gap-4 -mt-20">
+                    <div class="flex-auto">
+                        <label for="icondisplay" class="font-bold block"> Site/Lokasi </label>
+                        <Textarea v-model="value" rows="6" style="resize: none;" class="w-full" />
+                    </div>
+                    <div class="flex-auto">
+                        <label for="icondisplay" class="font-bold block"> Deskripsi Permasalahan </label>
+                        <Textarea v-model="value" rows="6" style="resize: none;" class="w-full" />
+                    </div>
+                </div>
+                <div class="card flex flex-wrap gap-4 -mt-20">
+                    <div class="flex-auto">
+                        <label for="icondisplay" class="font-bold block"> Kategori Permasalahan </label>
+                        <Select v-model="selectedCategory" :options="categories" optionLabel="name" placeholder="Pilih Kategori" class="w-full" />
+                    </div>
+                    <div class="flex-auto">
+                        <label for="icondisplay" class="font-bold block"> Petugas </label>
+                        <InputText v-model="text1" placeholder="Nama Petugas" class="w-full" />
+                    </div>
+                </div>
+                <div class="card flex flex-wrap gap-4 -mt-20">
+                    <div class="flex-auto">
+                        <label for="icondisplay" class="font-bold block"> Action/Solusi </label>
+                        <Textarea v-model="value" name="address" rows="6" style="resize: none;" class="w-full" />
+                        <Message v-if="$form.address?.invalid" severity="error" size="small" variant="simple">{{ $form.address.error?.message }}</Message>
+                    </div>
+                </div>
+                <div class="card flex flex-wrap gap-4 -mt-20">
+                    <div class="flex-auto">
+                        <label for="" class="font-bold block"> Status </label>
+                        <Select v-model="selectedStatus" :options="status" optionLabel="name" placeholder="Pilih Status" class="w-full" />
+                    </div>
+                </div>
+                <div class="card flex flex-wrap gap-4 -mt-20">
+                    <div class="flex-auto">
+                        <Button type="submit" label="Success" severity="success" raised />
+                    </div>
+                </div>
+            </Form>
+        </div>
+    </Dialog>
 </template>

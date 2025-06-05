@@ -17,7 +17,7 @@ const datas = defineProps({
 </script>
 
 <template>
-    <Head :title="datas.user ? 'Landing' : 'Unsign'" />
+    <Head :title="'Landing'" />
 
     <layout-widget :user="datas.user">
         <HeroWidget />
