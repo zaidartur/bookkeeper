@@ -3,6 +3,7 @@
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\MaintenanceController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\TroubleController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -31,7 +32,7 @@ Route::prefix('/')->middleware('auth')->group(function() {
     });
 
     Route::prefix('/trouble')->group(function() {
-        Route::get('/', [MaintenanceController::class, 'trouble'])->name('trouble');
+        Route::get('/', [TroubleController::class, 'view'])->name('trouble');
     });
 });
 

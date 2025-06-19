@@ -19,9 +19,9 @@ return new class extends Migration
             $table->text('problem');
             $table->string('lokasi', '150');
             $table->string('kategori', '50');
-            $table->date('tgl_selesai');
-            $table->string('jam_selesai', '6');
-            $table->text('solusi');
+            $table->date('tgl_selesai')->nullable();
+            $table->string('jam_selesai', '6')->nullable();
+            $table->text('solusi')->nullable();
             $table->string('petugas', '50');
             $table->text('foto_awal')->nullable();
             $table->text('foto_akhir')->nullable();
