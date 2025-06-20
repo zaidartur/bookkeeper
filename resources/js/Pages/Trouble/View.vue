@@ -8,6 +8,7 @@ import { zodResolver } from '@primevue/forms/resolvers/zod';
 import { z } from 'zod';
 import { useVuelidate } from '@vuelidate/core';
 import { required, minLength } from '@vuelidate/validators'
+import { useConfirm } from "primevue/useconfirm";
 import moment from 'moment';
 import FileUpload from 'primevue/fileupload';
 
@@ -17,7 +18,16 @@ const datas = defineProps({
 })
 moment.locale('id')
 
-const dataTrouble = datas.lists
+const dataTrouble = ref(Array())
+const initData = () => {
+    // dataTrouble.value = datas.lists
+    dataTrouble.value = []
+    if (datas.lists.length > 0) {
+        datas.lists.map((_list) => {
+            dataTrouble.value.push(_list)
+        })
+    }
+}
 const getSeverity = (tr) => {
     switch (tr) {
         case 'finish':
@@ -30,9 +40,23 @@ const getSeverity = (tr) => {
             return null;
     }
 };
+initData()
+const setCategories = (cat) => {
+    let _name = ''
+    categories.value.some((_cat) => {
+        if (_cat.value === cat) {
+            _name = _cat.name
+            return _cat.name
+        }
+    })
 
+    return _name
+}
+
+const statusForm = ref('new')
 const addNew = ref(false)
 const confirmation = ref(false)
+const submitted = ref(false)
 const headerNew = ref('')
 const detailLokasi = ref('');
 const detailDeskripsi = ref('');
@@ -45,14 +69,17 @@ const formAdd = useForm({
     petugas: '',
     deskripsi: '',
     foto: null,
+    old_foto: null,
 });
 const formConfirm = useForm({
+    uuid: '',
     selesai: '',
     jam: '',
     solusi: '',
     foto: null,
 });
 
+// selecting image
 const src = ref(null)
 const clearing = ref(false)
 function onFileSelect(event) {
@@ -71,8 +98,12 @@ function onClearFile() {
     src.value = null
     formAdd.foto = null
     clearing.value = false
+    if (formAdd.old_foto) {
+        formAdd.old_foto = null
+    }
 }
 
+// selecting image on confirmation
 const srcFinish = ref(null)
 const fClearing = ref(false)
 function onFileConfirm(event) {
@@ -109,115 +140,178 @@ const status = ref([
     {name: 'Finish', value: 'finish'}
 ]);
 
-const rules = {
-    tglMulai: { required },
-    jamMulai: { required },
-    _lokasi: { required, minLength: minLength(3) },
-    _deskripsi: { required, minLength: minLength(3) },
-    _kategori: { required, minLength: minLength(3) },
-    _petugas: { required, minLength: minLength(3) },
+const maxDate = ref(new Date())
+const rules = ref({
+    tglMulai: false,
+    jamMulai: false,
+    _lokasi: false,
+    _deskripsi: false,
+    _kategori: false,
+    _petugas: false,
+    tglSelesai: false,
+    jamSelesai: false,
+    _solusi: false,
+})
+
+const resetValidation = () => {
+    rules.value.tglMulai    = false
+    rules.value.jamMulai    = false
+    rules.value._lokasi     = false
+    rules.value._deskripsi  = false
+    rules.value._kategori   = false
+    rules.value._petugas    = false
+    rules.value.tglSelesai  = false
+    rules.value.jamSelesai  = false
+    rules.value._solusi     = false
 }
 
-const $v = useVuelidate(rules, { 
-            tglMulai: formAdd.mulai,
-            jamMulai: formAdd.jam,
-            _lokasi: formAdd.lokasi,
-            _deskripsi: formAdd.deskripsi,
-            _kategori: formAdd.kategori,
-            _petugas: formAdd.petugas
-        })
+// console.log(moment().format('L'))
+const isTglMulai = () => {
+    formAdd.mulai ? rules.value.tglMulai = false : rules.value.tglMulai = true
+}
+const isJamMulai = () => {
+    formAdd.jam ? rules.value.jamMulai = false : rules.value.jamMulai = true
+}
+const isLokasi = () => {
+    formAdd.lokasi ? rules.value._lokasi = false : rules.value._lokasi = true
+}
+const isDeskripsi = () => {
+    formAdd.deskripsi ? rules.value._deskripsi = false : rules.value._deskripsi = true
+}
+const isKategori = () => {
+    formAdd.kategori ? rules.value._kategori = false : rules.value._kategori = true
+    selectedCategory.value ? (formAdd.kategori = selectedCategory.value.value) : (formAdd.kategori = '')
+}
+const isPetugas = () => {
+    formAdd.petugas ? rules.value._petugas = false : rules.value._petugas = true
+}
+const isTglSelesai = () => {
+    formConfirm.selesai ? rules.value.tglSelesai = false : rules.value.tglSelesai = true
+}
+const isJamSelesai = () => {
+    formConfirm.jam ? rules.value.jamSelesai = false : rules.value.jamSelesai = true
+}
+const isSolusi = () => {
+    formConfirm.solusi ? rules.value._solusi = false : rules.value._solusi = true
+}
 
-const initialValues = ref({
-    tglMulai: null,
-    jamMulai: null,
-    _lokasi: '',
-    _deskripsi: '',
-    _kategori: null,
-    _petugas: '',
-});
+const checkValidationNew = () => {
+    isTglMulai()
+    isJamMulai()
+    isLokasi()
+    isDeskripsi()
+    isKategori()
+    isPetugas()
+}
 
-const resolver = ref(zodResolver(
-    z.object({
-        tglMulai: z.preprocess((val) => {
-                    if (val === '' || val === null) {
-                        return null
-                    }
-                    return new Date(val)
-                }, z.union([z.date(), z.null().refine((val) => val !== null, {message: 'Tanggal Kejadian wajib diisi'})])),
-        jamMulai: z.preprocess((val) => {
-                    if (val === '' || val === null) {
-                        return null
-                    }
-                    return new Date(val)
-                }, z.union([z.date(), z.null().refine((val) => val !== null, {message: 'Jam Kejadian wajib diisi'})])),
-        _lokasi: z.string().min(1, { message: 'Lokasi wajib diisi.' }),
-        _deskripsi: z.string().min(1, { message: 'Deskripsi wajib diisi.' }),
-        _kategori: z.preprocess((val) => {
-                        if (val === '' || val === null) {
-                            return null
-                        }
-                        return val.value
-                    }, z.union([z.string(), z.null().refine((val) => val !== null, {message: 'Kategori harus dipilih!'})])),
-        _petugas: z.string().min(1, { message: 'Petugas wajib diisi.' }),
-    })
-));
-
-const initialConfirm = ref({
-    tglSelesai: null,
-    jamSelesai: null,
-    _solusi: '',    
-});
-const resolverConfirm = ref(zodResolver(
-    z.object({
-        tglSelesai: z.preprocess((val) => {
-                    if (val === '' || val === null) {
-                        return null
-                    }
-                    return new Date(val)
-                }, z.union([z.date(), z.null().refine((val) => val !== null, {message: 'Tanggal Selesai wajib diisi'})])),
-        jamSelesai: z.preprocess((val) => {
-                    if (val === '' || val === null) {
-                        return null
-                    }
-                    return new Date(val)
-                }, z.union([z.date(), z.null().refine((val) => val !== null, {message: 'Jam Selesai wajib diisi'})])),
-        _solusi: z.string().min(1, { message: 'Solusi wajib diisi.' }),
-    })
-))
+const checkValidationConfirm = () => {
+    isTglSelesai()
+    isJamSelesai()
+    isSolusi()
+}
 
 const showModal = () => {
     headerNew.value = 'Input Trouble/Masalah Baru'
     formAdd.reset();
+    resetValidation()
+    statusForm.value = 'new'
     addNew.value = true
 }
 
-const onFormSubmit = ({ valid }) => {
-    console.log(valid, initialValues)
-    if (valid) {
-        console.log(initialValues, formAdd)
-        toast.add({ severity: 'success', summary: 'Form is submitted.', life: 3000 });
+const onFormSubmit = () => {
+    checkValidationNew()
+    if (formAdd.mulai && formAdd.jam && formAdd.lokasi && formAdd.deskripsi && formAdd.kategori && formAdd.petugas) {
+        console.log(formAdd)
+        submitted.value = true
+        if (statusForm.value === 'new') {
+            formAdd.post('/trouble/save', {
+                resetOnSuccess: true,
+                onSuccess: (res) => {
+                    const messages = res.props.flash.message
+                    alert_response(messages)
+                    submitted.value = false
+                    addNew.value = false
+
+                    initData()
+                },
+                onError: () => {
+                    toast.add({ severity: 'error', summary: 'Peringatan', detail: 'Terjadi kesalahan pada sistem', life: 3000 });
+                    submitted.value = false
+                }
+            })
+        } else if (statusForm.value === 'edit') {
+            formAdd.post('/trouble/update', {
+                resetOnSuccess: true,
+                onSuccess: (res) => {
+                    const messages = res.props.flash.message
+                    alert_response(messages)
+                    submitted.value = false
+                    addNew.value = false
+
+                    initData()
+                },
+                onError: () => {
+                    toast.add({ severity: 'error', summary: 'Peringatan', detail: 'Terjadi kesalahan pada sistem', life: 3000 });
+                    submitted.value = false
+                }
+            })
+        } else {
+            return false
+        }
+    } else {
+        toast.add({ severity: 'error', summary: 'Mohon isi data yang diwajibkan!', life: 3000 });
     }
 }
 
-const onFormConfirm = ({ valid }) => {
-    console.log('form', valid)
-    if (valid) {
-        console.log('form valid', formConfirm)
-        toast.add({ severity: 'success', summary: 'Form is submitted.', life: 3000 });
+const onFormConfirm = () => {
+    checkValidationConfirm()
+    if (formConfirm.selesai && formConfirm.jam && formConfirm.solusi) {
+        console.log(formConfirm)
+        submitted.value = true
+        formConfirm.post('/trouble/confirm', {
+            resetOnSuccess: true,
+            onSuccess: (res) => {
+                const messages = res.props.flash.message
+                alert_response(messages)
+                submitted.value = false
+                confirmation.value = false
+
+                initData()
+            },
+            onError: () => {
+                toast.add({ severity: 'error', summary: 'Peringatan', detail: 'Terjadi kesalahan pada sistem', life: 3000 });
+                submitted.value = false
+            }
+        })
+    } else {
+        toast.add({ severity: 'error', summary: 'Mohon isi data yang diwajibkan!', life: 3000 });
     }
 }
 
 const editForm = (_edit) => {
+    formAdd.reset()
+
     formAdd.uuid        = _edit.uuid
     formAdd.mulai       = _edit.tgl_trouble
     formAdd.jam         = _edit.jam_trouble
     formAdd.lokasi      = _edit.lokasi
-    formAdd.kategori    = _edit.kategori
     formAdd.petugas     = _edit.petugas
     formAdd.deskripsi   = _edit.problem
-    formAdd.foto        = _edit.foto_awal
+    formAdd.kategori    = _edit.kategori
+    
+    if (_edit.foto_awal) {
+        formAdd.old_foto= _edit.foto_awal
+        src.value       = _edit.foto_awal
+    }
+    categories.value.some((cat) => {
+        if (cat.value === _edit.kategori) {
+            selectedCategory.value = cat
+            return true
+        }
+    })
 
     headerNew.value = 'Edit Trouble/Masalah'
+    statusForm.value = 'edit'
     addNew.value = true
 }
 
@@ -231,15 +325,77 @@ const confirmDialog = (isDetail) => {
         detailDeskripsi.value = isDetail.problem
 
         formConfirm.reset()
+        formConfirm.uuid = isDetail.uuid
 
         confirmation.value = true
     }
 }
 
+const dialConfirm = useConfirm()
+const deleteData = (props) => {
+    dialConfirm.require({
+        message: `Anda yakin ingin menghapus lokasi ${props.lokasi}?`,
+        header: 'Danger Zone',
+        icon: 'pi pi-exclamation-triangle',
+        rejectLabel: 'Batal',
+        rejectProps: {
+            label: 'Batal',
+            severity: 'secondary',
+            outlined: true
+        },
+        acceptProps: {
+            label: 'Hapus',
+            severity: 'danger'
+        },
+        accept: () => {
+            if (props.uuid) {
+                confirmDelete(props.uuid)
+            } else {
+                toast.add({ severity: 'error', summary: 'Error', detail: 'ID tidak terdaftar', life: 3000 });
+            }
+        }
+    });
+}
+
+const confirmDelete = (uid) => {
+    if (uid) {
+        const form = useForm({
+            uuid: uid,
+        })
+        
+        form.post('/trouble/delete', {
+            resetOnSuccess: true,
+            onSuccess: (res) => {
+                const messages = res.props.flash.message
+                alert_response(messages)
+
+                initData()
+            },
+            onError: () => {
+                toast.add({ severity: 'error', summary: 'Peringatan', detail: 'Terjadi kesalahan pada sistem', life: 3000 });
+            }
+        })
+    } else {
+        return false
+    }
+}
+
+const _test = (event) => {
+    console.log('work!', event.srcElement.name)
+}
+
+const alert_response = (rsp) => {
+    if (rsp.status === 'failed') {
+        toast.add({ severity: 'error', summary: 'Error', detail: rsp.msg, life: 3000 });
+    } else if (rsp.status === 'success') {
+        toast.add({ severity: 'success', summary: 'Berhasil', detail: rsp.msg, life: 3000 });
+    }
+}
 </script>
 
 <template>
     <Toast />
+    <ConfirmDialog></ConfirmDialog>
     <Head title="Network Trouble" />
 
     <Card class="w-full">
@@ -257,7 +413,11 @@ const confirmDialog = (isDetail) => {
                     </Column>
                     <Column field="lokasi" header="Lokasi" style="width: 20%"></Column>
                     <Column field="problem" header="Trouble" style="width: 20%"></Column>
-                    <Column field="kategori" header="Kategori" style="width: 15%"></Column>
+                    <Column field="kategori" header="Kategori" style="width: 15%">
+                        <template #body="slotProps">
+                            {{ setCategories(slotProps.data.kategori) }}
+                        </template>
+                    </Column>
                     <Column header="status" style="width: 10%">
                         <template #body="slotProps">
                             <Tag :value="slotProps.data.status.toLowerCase()" :severity="getSeverity(slotProps.data.status)" />
@@ -268,7 +428,7 @@ const confirmDialog = (isDetail) => {
                             <Button type="button" severity="success" icon="pi pi-wrench" variant="outlined" v-tooltip.bottom="'Ubah Status'" rounded raised v-if="slotProps.data.status === 'progress'" @click="confirmDialog(slotProps.data)" /> &nbsp;
                             <Button type="button" severity="info" icon="pi pi-info-circle" variant="outlined" v-tooltip.bottom="'Detail Trouble'" rounded raised /> &nbsp;
                             <Button type="button" severity="warn" icon="pi pi-pencil" v-tooltip.bottom="'Edit Trouble'" rounded raised @click="editForm(slotProps.data)" /> &nbsp;
-                            <Button type="button" severity="danger" icon="pi pi-trash" variant="outlined" v-tooltip.bottom="'Hapus Data'" rounded raised />
+                            <Button type="button" severity="danger" icon="pi pi-trash" variant="outlined" v-tooltip.bottom="'Hapus Data'" rounded raised @click="deleteData(slotProps.data)" />
                         </template>
                     </Column>
 
@@ -296,59 +456,60 @@ const confirmDialog = (isDetail) => {
 
     <Dialog v-model:visible="addNew" maximizable modal :header="headerNew" :style="{width: '50rem'}" :breakpoints="{ '1199px': '75vw', '575px': '90vw' }">
         <div>
-            <Form v-slot="$form" :resolver="resolver" :initialValues="initialValues" @submit="onFormSubmit" class="flex flex-col gap-4">
+            <Form @submit="onFormSubmit" class="flex flex-col gap-4">
                 <div class="card flex flex-wrap gap-4">
                     <div class="flex-auto">
                         <label for="tglMulai" class="font-bold block"> Tanggal Kejadian </label>
-                        <DatePicker v-model="formAdd.mulai" showIcon fluid iconDisplay="input" name="tglMulai" inputId="tglMulai" @change="$form.onChange" />
-                        <Message v-if="$form.tglMulai?.invalid" severity="error" size="small" variant="simple">{{ $form.tglMulai.error?.message }}</Message>
+                        <DatePicker v-model="formAdd.mulai" showIcon fluid iconDisplay="input" name="tglMulai" :maxDate="maxDate" inputId="tglMulai" :invalid="rules.tglMulai" @blur="isTglMulai" @change="isTglMulai" />
+                        <Message v-if="rules.tglMulai" severity="error" size="small" variant="simple">Tanggal Kejadian wajib diisi</Message>
                     </div>
                     <div class="flex-auto">
                         <label for="jamMulai" class="font-bold block">Jam Kejadian </label>
-                        <DatePicker v-model="formAdd.jam" showIcon fluid iconDisplay="input" timeOnly inputId="jamMulai" name="jamMulai">
+                        <DatePicker v-model="formAdd.jam" showIcon fluid iconDisplay="input" timeOnly inputId="jamMulai" name="jamMulai" :invalid="rules.jamMulai" @blur="isJamMulai" @change="isJamMulai">
                             <template #inputicon="slotProps">
                                 <i class="pi pi-clock" @click="slotProps.clickCallback" />
                             </template>
                         </DatePicker>
-                        <Message v-if="$form.jamMulai?.invalid" severity="error" size="small" variant="simple">{{ $form.jamMulai.error?.message }}</Message>
+                        <Message v-if="rules.jamMulai" severity="error" size="small" variant="simple">Jam Kejadian wajib diisi</Message>
                     </div>
                 </div>
                 <div class="card flex flex-wrap gap-4 -mt-20">
                     <div class="flex-auto">
                         <label for="" class="font-bold block"> Site/Lokasi </label>
-                        <Textarea v-model="formAdd.lokasi" rows="6" style="resize: none;" class="w-full" name="_lokasi" value="Apa" />
-                        <Message v-if="$form._lokasi?.invalid" severity="error" size="small" variant="simple">{{ $form._lokasi.error?.message }}</Message>
+                        <Textarea v-model="formAdd.lokasi" rows="6" style="resize: none;" class="w-full" name="_lokasi" :invalid="rules._lokasi" @blur="isLokasi" @change="isLokasi" />
+                        <Message v-if="rules._lokasi" severity="error" size="small" variant="simple">Lokasi wajib diisi</Message>
                     </div>
                     <div class="flex-auto">
                         <label for="" class="font-bold block"> Deskripsi Permasalahan </label>
-                        <Textarea v-model="formAdd.deskripsi" rows="6" style="resize: none;" class="w-full" name="_deskripsi" />
-                        <Message v-if="$form._deskripsi?.invalid" severity="error" size="small" variant="simple">{{ $form._deskripsi.error?.message }}</Message>
+                        <Textarea v-model="formAdd.deskripsi" rows="6" style="resize: none;" class="w-full" name="_deskripsi" :invalid="rules._deskripsi" @blur="isDeskripsi" @change="isDeskripsi" />
+                        <!-- <Message v-if="$form._deskripsi?.invalid" severity="error" size="small" variant="simple">{{ $form._deskripsi.error?.message }}</Message> -->
+                         <Message v-if="rules._deskripsi" severity="error" size="small" variant="simple">Deskripsi wajib diisi</Message>
                     </div>
                 </div>
                 <div class="card flex flex-wrap gap-4 -mt-20">
                     <div class="flex-auto">
                         <label for="" class="font-bold block"> Kategori Permasalahan </label>
-                        <Select v-model="formAdd.kategori" :options="categories" optionLabel="name" name="_kategori" placeholder="Pilih Kategori" class="w-full" />
-                        <Message v-if="$form._kategori?.invalid" severity="error" size="small" variant="simple">{{ $form._kategori.error?.message }}</Message>
+                        <Select v-model="selectedCategory" :options="categories" optionLabel="name" name="_kategori" placeholder="Pilih Kategori" class="w-full" :invalid="rules._kategori" @blur="isKategori" @change="isKategori" />
+                        <Message v-if="rules._kategori" severity="error" size="small" variant="simple">Kategori wajib dipilih</Message>
                     </div>
                     <div class="flex-auto">
                         <label for="petugas" class="font-bold block"> Petugas </label>
-                        <InputText v-model="formAdd.petugas" placeholder="Nama Petugas" class="w-full" name="_petugas" />
-                        <Message v-if="$form._petugas?.invalid" severity="error" size="small" variant="simple">{{ $form._petugas.error?.message }}</Message>
+                        <InputText v-model="formAdd.petugas" placeholder="Nama Petugas" class="w-full" name="_petugas" :invalid="rules._petugas" @blur="isPetugas" @change="isPetugas" />
+                        <Message v-if="rules._petugas" severity="error" size="small" variant="simple">Nama Petugas wajib diisi</Message>
                     </div>
                 </div>
                 <div class="card flex flex-wrap gap-4 -mt-20 mb-8">
                     <div class="flex-auto justify-items-center">
                         <label for="" class="font-bold block"> Foto Permasalahan (opsional) </label>
-                        <FileUpload mode="basic" @select="onFileSelect" customUpload auto severity="secondary" class="p-button-outlined mb-3" />
-                        <Button type="button" label="Hapus" severity="warn" icon="pi pi-trash" raised v-if="clearing" @click="onClearFile" />
-                        <img v-if="src" :src="src" alt="Image" class="shadow-md rounded-xl w-full sm:w-64" style="filter: grayscale(100%)" />
+                        <FileUpload mode="basic" @select="onFileSelect" customUpload auto severity="secondary" class="p-button-outlined mb-3" accept=".png,.jpg,.jpeg" />
+                        <Button type="button" label="Hapus" severity="warn" icon="pi pi-trash" raised v-if="clearing" @click="onClearFile" :disabled="submitted" />
+                        <img v-if="src" :src="src" alt="Image" class="shadow-md rounded-xl w-full sm:w-64" />
                     </div>
                 </div>
                 <div class="card flex flex-wrap gap-4 -mt-20 justify-items-center">
                     <div class="flex-auto gap-4 text-center">
-                        <Button type="button" label="Tutup" severity="secondary" class="col-3 btn-block mr-5" icon="pi pi-times" raised @click="addNew = false" />
-                        <Button type="submit" label="Simpan" severity="success" icon="pi pi-save" raised />
+                        <Button type="button" label="Tutup" severity="secondary" class="col-3 btn-block mr-5" icon="pi pi-times" raised @click="addNew = false" :disabled="submitted" />
+                        <Button type="submit" :label="submitted ? 'Menyimpan' : 'Simpan'" severity="success" :icon="submitted ? 'pi pi-spin pi-spinner' : 'pi pi-save'" raised :disabled="submitted" />
                     </div>
                 </div>
             </Form>
@@ -357,7 +518,7 @@ const confirmDialog = (isDetail) => {
 
     <Dialog v-model:visible="confirmation" maximizable modal header="Konfirmasi Perbaikan Masalah/Trouble" :style="{width: '50rem'}" :breakpoints="{ '1199px': '75vw', '575px': '90vw' }">
         <div>
-            <Form v-slot="$forms" :resolver="resolverConfirm" :initialValues="initialConfirm" @submit="onFormConfirm" class="flex flex-col gap-4">
+            <Form @submit="onFormConfirm" class="flex flex-col gap-4">
                 <div class="card flex flex-wrap gap-4">
                     <div class="flex-auto">
                         <label for="" class="font-bold block"> Site/Lokasi </label>
@@ -371,30 +532,30 @@ const confirmDialog = (isDetail) => {
                 <div class="card flex flex-wrap gap-4 -mt-20">
                     <div class="flex-auto">
                         <label for="tglSelesai" class="font-bold block"> Tanggal Selesai </label>
-                        <DatePicker v-model="formConfirm.selesai" showIcon fluid iconDisplay="input" inputId="tglSelesai" name="tglSelesai" />
-                        <Message v-if="$forms.tglSelesai?.invalid" severity="error" size="small" variant="simple">{{ $forms.tglSelesai.error?.message }}</Message>
+                        <DatePicker v-model="formConfirm.selesai" showIcon fluid iconDisplay="input" inputId="tglSelesai" name="tglSelesai" :maxDate="maxDate" @blur="isTglSelesai" @change="isTglSelesai" />
+                        <Message v-if="rules.tglSelesai" severity="error" size="small" variant="simple">Tanggal Selesai wajib diisi</Message>
                     </div>
                     <div class="flex-auto">
                         <label for="jamSelesai" class="font-bold block">Jam Selesai </label>
-                        <DatePicker v-model="formConfirm.jam" showIcon fluid iconDisplay="input" timeOnly inputId="jamSelesai" name="jamSelesai">
+                        <DatePicker v-model="formConfirm.jam" showIcon fluid iconDisplay="input" timeOnly inputId="jamSelesai" name="jamSelesai" @blur="isJamSelesai" @change="isJamSelesai">
                             <template #inputicon="slotProps">
                                 <i class="pi pi-clock" @click="slotProps.clickCallback" />
                             </template>
                         </DatePicker>
-                        <Message v-if="$forms.jamSelesai?.invalid" severity="error" size="small" variant="simple">{{ $forms.jamSelesai.error?.message }}</Message>
+                        <Message v-if="rules.jamSelesai" severity="error" size="small" variant="simple">Jam Selesai wajib diisi</Message>
                     </div>
                 </div>
                 <div class="card flex flex-wrap gap-4 -mt-20">
                     <div class="flex-auto">
                         <label for="icondisplay" class="font-bold block"> Action/Solusi </label>
-                        <Textarea v-model="formConfirm.solusi" name="_solusi" rows="5" style="resize: none;" class="w-full" />
-                        <Message v-if="$forms._solusi?.invalid" severity="error" size="small" variant="simple">{{ $forms._solusi.error?.message }}</Message>
+                        <Textarea v-model="formConfirm.solusi" name="_solusi" rows="5" style="resize: none;" class="w-full" @blur="isSolusi" @change="isSolusi" />
+                        <Message v-if="rules._solusi" severity="error" size="small" variant="simple">Solusi wajib diisi</Message>
                     </div>
                 </div>
                 <div class="card flex flex-wrap gap-4 -mt-20 mb-8">
                     <div class="flex-auto justify-items-center">
                         <label for="icondisplay" class="font-bold block"> Foto Selesai (opsional) </label>
-                        <FileUpload mode="basic" @select="onFileConfirm" customUpload auto severity="secondary" class="p-button-outlined mb-3" />
+                        <FileUpload mode="basic" @select="onFileConfirm" customUpload auto severity="secondary" class="p-button-outlined mb-3" accept=".png,.jpg,.jpeg" />
                         <Button type="button" label="Hapus" severity="warn" icon="pi pi-trash" raised v-if="fClearing" @click="onClearFileConfirm" />
                         <img v-if="srcFinish" :src="srcFinish" alt="Image" class="shadow-md rounded-xl w-full sm:w-64" />
                     </div>
@@ -404,8 +565,8 @@ const confirmDialog = (isDetail) => {
                 </div>
                 <div class="card flex flex-wrap gap-4 -mt-20 justify-items-center">
                     <div class="flex-auto gap-4 text-center">
-                        <Button type="button" label="Tutup" severity="secondary" class="col-3 btn-block mr-5" icon="pi pi-times" raised @click="confirmation = false" />
-                        <Button type="submit" label="Simpan" severity="success" icon="pi pi-save" raised />
+                        <Button type="button" label="Tutup" severity="secondary" class="col-3 btn-block mr-5" icon="pi pi-times" raised @click="confirmation = false" :disabled="submitted" />
+                        <Button type="submit" :label="submitted ? 'Menyimpan' : 'Konfirmasi'" severity="success" :icon="submitted ? 'pi pi-spin pi-spinner' : 'pi pi-save'" raised :disabled="submitted" />
                     </div>
                 </div>
             </Form>

@@ -33,6 +33,11 @@ Route::prefix('/')->middleware('auth')->group(function() {
 
     Route::prefix('/trouble')->group(function() {
         Route::get('/', [TroubleController::class, 'view'])->name('trouble');
+
+        Route::post('/save', [TroubleController::class, 'save'])->name('trouble.save');
+        Route::post('/update', [TroubleController::class, 'update'])->name('trouble.update');
+        Route::post('/confirm', [TroubleController::class, 'confirm'])->name('trouble.confirm');
+        Route::post('/delete', [TroubleController::class, 'delete'])->name('trouble.delete');
     });
 });
 

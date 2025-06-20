@@ -23,11 +23,11 @@ return new class extends Migration
             $table->string('jam_selesai', '6')->nullable();
             $table->text('solusi')->nullable();
             $table->string('petugas', '50');
-            $table->text('foto_awal')->nullable();
-            $table->text('foto_akhir')->nullable();
+            $table->mediumText('foto_awal')->nullable();
+            $table->mediumText('foto_akhir')->nullable();
             $table->string('status', '50');
             $table->string('created_by', '64');
-            $table->string('confirmed_by', '64');
+            $table->string('confirmed_by', '64')->nullable();
             $table->timestamps();
         });
     }
