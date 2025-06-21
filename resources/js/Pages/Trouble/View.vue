@@ -211,9 +211,12 @@ const checkValidationConfirm = () => {
 }
 
 const showModal = () => {
-    headerNew.value = 'Input Trouble/Masalah Baru'
     formAdd.reset();
+    src.value = null
+    clearing.value = false
     resetValidation()
+
+    headerNew.value = 'Input Trouble/Masalah Baru'
     statusForm.value = 'new'
     addNew.value = true
 }
@@ -321,8 +324,17 @@ const detailForm = (isDetail) => {
 
 const confirmDialog = (isDetail) => {
     if (isDetail) {
-        detailLokasi.value = isDetail.lokasi
+        formAdd.mulai       = moment(isDetail.tgl_trouble).format('DD MMMM YYYY')
+        formAdd.jam         = isDetail.jam_trouble
+        formAdd.kategori    = isDetail.kategori
+        formAdd.petugas     = isDetail.petugas
+        detailLokasi.value  = isDetail.lokasi
         detailDeskripsi.value = isDetail.problem
+        if (isDetail.foto_awal) {
+            src.value = isDetail.foto_awal
+        } else {
+            src.value = null
+        }
 
         formConfirm.reset()
         formConfirm.uuid = isDetail.uuid
@@ -405,7 +417,7 @@ const alert_response = (rsp) => {
                 <Button type="button" label="Buat Data Trouble" severity="info" icon="pi pi-plus-circle" raised @click="showModal" />
             </div>
             <div>
-                <DataTable :value="dataTrouble" paginator :rows="10" :rowsPerPageOptions="[5, 10, 20, 50]" tableStyle="min-width: 50rem">
+                <DataTable :value="dataTrouble" paginator :rows="15" :rowsPerPageOptions="[5, 10, 15, 20, 50]" tableStyle="min-width: 50rem">
                     <Column field="tgl_trouble" header="Waktu Kejadian" style="width: 15%">
                         <template #body="slotProps">
                             <label>{{ moment(slotProps.data.tgl_trouble).format("DD MMM YYYY") +' '+ slotProps.data.jam_trouble }}</label>
@@ -418,14 +430,14 @@ const alert_response = (rsp) => {
                             {{ setCategories(slotProps.data.kategori) }}
                         </template>
                     </Column>
-                    <Column header="status" style="width: 10%">
+                    <Column header="Status" style="width: 10%">
                         <template #body="slotProps">
                             <Tag :value="slotProps.data.status.toLowerCase()" :severity="getSeverity(slotProps.data.status)" />
                         </template>
                     </Column>
                     <Column header="Opsi" style="width: 20%; text-align: right;" class="justify-items-center">
                         <template #body="slotProps">
-                            <Button type="button" severity="success" icon="pi pi-wrench" variant="outlined" v-tooltip.bottom="'Ubah Status'" rounded raised v-if="slotProps.data.status === 'progress'" @click="confirmDialog(slotProps.data)" /> &nbsp;
+                            <Button type="button" severity="success" icon="pi pi-wrench" variant="outlined" v-tooltip.bottom="'Selesaikan Masalah'" rounded raised v-if="slotProps.data.status === 'progress'" @click="confirmDialog(slotProps.data)" /> &nbsp;
                             <Button type="button" severity="info" icon="pi pi-info-circle" variant="outlined" v-tooltip.bottom="'Detail Trouble'" rounded raised /> &nbsp;
                             <Button type="button" severity="warn" icon="pi pi-pencil" v-tooltip.bottom="'Edit Trouble'" rounded raised @click="editForm(slotProps.data)" /> &nbsp;
                             <Button type="button" severity="danger" icon="pi pi-trash" variant="outlined" v-tooltip.bottom="'Hapus Data'" rounded raised @click="deleteData(slotProps.data)" />
@@ -516,10 +528,20 @@ const alert_response = (rsp) => {
         </div>
     </Dialog>
 
-    <Dialog v-model:visible="confirmation" maximizable modal header="Konfirmasi Perbaikan Masalah/Trouble" :style="{width: '50rem'}" :breakpoints="{ '1199px': '75vw', '575px': '90vw' }">
-        <div>
-            <Form @submit="onFormConfirm" class="flex flex-col gap-4">
-                <div class="card flex flex-wrap gap-4">
+    <Dialog v-model:visible="confirmation" maximizable modal header="Konfirmasi Perbaikan Masalah/Trouble" :style="{width: '90rem'}" :breakpoints="{ '1199px': '75vw', '575px': '90vw' }">
+        <div class="flex flex-col md:flex-row">
+            <div class="w-full md:w-5/12 flex flex-col gap-4">
+                <div class="card flex flex-wrap gap-4 w-45">
+                    <div class="flex-auto">
+                        <label for="" class="font-bold block"> Waktu Permasalahan </label>
+                        <InputText v-model="formAdd.mulai" placeholder="Tanggal Mulai" class="w-full" disabled />
+                    </div>
+                    <div class="flex-auto">
+                        <label for="petugas" class="font-bold block"> Petugas </label>
+                        <InputText v-model="formAdd.jam" placeholder="Jam Mulai" class="w-full" disabled />
+                    </div>
+                </div>
+                <div class="card flex flex-wrap gap-4 -mt-20">
                     <div class="flex-auto">
                         <label for="" class="font-bold block"> Site/Lokasi </label>
                         <Textarea v-model="detailLokasi" rows="5" style="resize: none;" class="w-full" disabled />
@@ -530,6 +552,50 @@ const alert_response = (rsp) => {
                     </div>
                 </div>
                 <div class="card flex flex-wrap gap-4 -mt-20">
+                    <div class="flex-auto">
+                        <label for="" class="font-bold block"> Kategori </label>
+                        <InputText :value="setCategories(formAdd.kategori)" placeholder="Kategori" class="w-full" disabled />
+                    </div>
+                    <div class="flex-auto"> 
+                        <label for="" class="font-bold block"> Petugas </label>
+                        <InputText v-model="formAdd.petugas" placeholder="Petugas" class="w-full" disabled />
+                    </div>
+                </div>
+                <div class="card flex flex-wrap gap-4 -mt-20">
+                    <div class="flex-auto justify-items-center">
+                        <img v-if="src" :src="src" alt="Image" class="shadow-md rounded-xl w-full sm:w-64" />
+                    </div>
+                </div>
+            </div>
+            <div class="w-full md:w-2/12">
+                <Divider layout="vertical" class="!hidden md:!flex" />
+                <Divider layout="horizontal" class="!flex md:!hidden" align="center" />
+            </div>
+            <Form @submit="onFormConfirm" class="w-full md:w-5/12 flex flex-col gap-4">
+                <!-- <div class="card flex flex-wrap gap-4">
+                    <div class="flex-auto">
+                        <label for="" class="font-bold block"> Waktu Permasalahan </label>
+                        <InputText v-model="formAdd.mulai" placeholder="Tanggal Mulai" class="w-full" disabled />
+                    </div>
+                    <div class="flex-auto">
+                        <label for="petugas" class="font-bold block"> Petugas </label>
+                        <InputText v-model="formAdd.jam" placeholder="Jam Mulai" class="w-full" disabled />
+                    </div>
+                </div>
+                <div class="card flex flex-wrap gap-4 -mt-20">
+                    <div class="flex-auto">
+                        <label for="" class="font-bold block"> Site/Lokasi </label>
+                        <Textarea v-model="detailLokasi" rows="5" style="resize: none;" class="w-full" disabled />
+                    </div>
+                    <div class="flex-auto">
+                        <label for="" class="font-bold block"> Deskripsi Permasalahan </label>
+                        <Textarea v-model="detailDeskripsi" rows="5" style="resize: none;" class="w-full" disabled />
+                    </div>
+                </div>
+                <div class="card flex flex-wrap gap-4 -mt-20 justify-items-center">
+                    <Divider />
+                </div> -->
+                <div class="card flex flex-wrap gap-4   ">
                     <div class="flex-auto">
                         <label for="tglSelesai" class="font-bold block"> Tanggal Selesai </label>
                         <DatePicker v-model="formConfirm.selesai" showIcon fluid iconDisplay="input" inputId="tglSelesai" name="tglSelesai" :maxDate="maxDate" @blur="isTglSelesai" @change="isTglSelesai" />
@@ -556,11 +622,11 @@ const alert_response = (rsp) => {
                     <div class="flex-auto justify-items-center">
                         <label for="icondisplay" class="font-bold block"> Foto Selesai (opsional) </label>
                         <FileUpload mode="basic" @select="onFileConfirm" customUpload auto severity="secondary" class="p-button-outlined mb-3" accept=".png,.jpg,.jpeg" />
-                        <Button type="button" label="Hapus" severity="warn" icon="pi pi-trash" raised v-if="fClearing" @click="onClearFileConfirm" />
+                        <Button type="button" label="Hapus" severity="warn" icon="pi pi-trash" class="mb-5" raised v-if="fClearing" @click="onClearFileConfirm" />
                         <img v-if="srcFinish" :src="srcFinish" alt="Image" class="shadow-md rounded-xl w-full sm:w-64" />
                     </div>
                 </div>
-                <div class="card flex flex-wrap gap-4 -mt-28 justify-items-center">
+                <div class="card flex flex-wrap gap-4 -mt-20 justify-items-center">
                     <Divider />
                 </div>
                 <div class="card flex flex-wrap gap-4 -mt-20 justify-items-center">

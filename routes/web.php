@@ -39,6 +39,9 @@ Route::prefix('/')->middleware('auth')->group(function() {
         Route::post('/confirm', [TroubleController::class, 'confirm'])->name('trouble.confirm');
         Route::post('/delete', [TroubleController::class, 'delete'])->name('trouble.delete');
     });
+    Route::prefix('/report')->group(function() {
+        Route::get('/trouble', [TroubleController::class, 'report'])->name('report.trouble');
+    });
 });
 
 Route::get('/buku-tamu', [DashboardController::class, 'guestbook'])->name('guestbook');

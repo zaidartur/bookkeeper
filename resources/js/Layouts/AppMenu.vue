@@ -11,14 +11,15 @@ const model = ref([
     {
         label: 'Input',
         items: [
-            { label: 'Maintenance', icon: 'pi pi-fw pi-id-card', to: '/maintenance' },
-            { label: 'Trouble', icon: 'pi pi-fw pi-id-card', to: '/trouble' },
+            { label: 'Maintenance/Perawatan', icon: 'pi pi-fw pi-id-card', to: '/maintenance' },
+            { label: 'Trouble/Masalah', icon: 'pi pi-fw pi-id-card', to: '/trouble' },
             { label: 'IP Address', icon: 'pi pi-fw pi-check-square', to: '/uikit/input' },
         ]
     },
     {
-        label: 'Report',
+        label: 'Reports',
         items: [
+            { label: 'Laporan Masalah', icon: 'pi pi-fw pi-id-card', to: '/report/trouble' },
             { label: 'Laporan Maintenance', icon: 'pi pi-fw pi-id-card', to: '/uikit/formlayout' },
             { label: 'Laporan Buku Tamu', icon: 'pi pi-fw pi-check-square', to: '/uikit/input' },
             { label: 'Inventaris Ruangan', icon: 'pi pi-fw pi-check-square', to: '/uikit/input' },
