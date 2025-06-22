@@ -171,7 +171,7 @@ const showImage = (img) => {
 <template>
     <Toast />
     <ConfirmDialog></ConfirmDialog>
-    <Head title="Report Trouble" />
+    <Head title="Report Trouble/Masalah" />
 
     <Card class="w-full">
         <template #title><i class="pi pi-sitemap"></i> Report of Network Trouble</template>
@@ -343,9 +343,13 @@ const showImage = (img) => {
                 </div>
             </div>
         </div>
-        <div class="flex flex-col md:flex-row m-10">
-            <div class="w-full flex flex-col justify-items-center text-center">
-                <Button type="button" label="Tutup" severity="secondary" class="btn-block" icon="pi pi-times" raised @click="detailDialog = false" />
+        <div class="flex flex-col md:flex-row mt-20">
+            <div class="w-full flex flex-col gap-4">
+                <div class="card flex flex-wrap gap-4 -mt-20 justify-items-center">
+                    <div class="flex-auto text-center">
+                        <Button type="button" label="Tutup" severity="secondary" class="flex md:w-6/12 sm:w-12/12 btn-block" icon="pi pi-times" raised @click="detailDialog = false" />
+                    </div>
+                </div>
             </div>
         </div>
     </Dialog>

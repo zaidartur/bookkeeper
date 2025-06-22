@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\IpAddressController;
 use App\Http\Controllers\MaintenanceController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\TroubleController;
@@ -28,7 +29,10 @@ Route::prefix('/')->middleware('auth')->group(function() {
 
     Route::prefix('/maintenance')->group(function() {
         Route::get('/', [MaintenanceController::class, 'view'])->name('maintenance');
-        Route::get('/input-maintenance', [MaintenanceController::class, 'input_form'])->name('mtc.form');
+
+        Route::post('/save', [MaintenanceController::class, 'save'])->name('maintenance.save');
+        Route::post('/update', [MaintenanceController::class, 'update'])->name('maintenance.update');
+        Route::post('/delete', [MaintenanceController::class, 'delete'])->name('maintenance.delete');
     });
 
     Route::prefix('/trouble')->group(function() {
@@ -39,8 +43,20 @@ Route::prefix('/')->middleware('auth')->group(function() {
         Route::post('/confirm', [TroubleController::class, 'confirm'])->name('trouble.confirm');
         Route::post('/delete', [TroubleController::class, 'delete'])->name('trouble.delete');
     });
+
+    Route::prefix('/ip-address')->group(function() {
+        Route::get('/', [IpAddressController::class, 'view'])->name('ip');
+
+        Route::post('/save', [IpAddressController::class, 'save'])->name('ip.save');
+        Route::post('/update', [IpAddressController::class, 'update'])->name('ip.update');
+        Route::post('/confirm', [IpAddressController::class, 'confirm'])->name('ip.confirm');
+        Route::post('/delete', [IpAddressController::class, 'delete'])->name('ip.delete');
+    });
+
     Route::prefix('/report')->group(function() {
         Route::get('/trouble', [TroubleController::class, 'report'])->name('report.trouble');
+        Route::get('/maintenance', [MaintenanceController::class, 'report'])->name('report.maintenance');
+        Route::get('/guest', [DashboardController::class, 'report_guest'])->name('report.guest');
     });
 });
 

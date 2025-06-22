@@ -25,6 +25,15 @@ class DashboardController extends Controller
         return Inertia::render('Guestbook', $data);
     }
 
+    public function report_guest()
+    {
+        $data = [
+            'lists'     => BukuTamu::orderBy('created_at', 'desc')->get(),
+        ];
+
+        return Inertia::render('ReportGuest', $data);
+    }
+
     public function save_guest(Request $request)
     {
         $request->validate([

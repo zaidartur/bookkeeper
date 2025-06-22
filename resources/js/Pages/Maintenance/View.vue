@@ -1,81 +1,149 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { Head, useForm, usePage } from '@inertiajs/vue3';
 import Toast from 'primevue/toast';
 import { useToast } from 'primevue/usetoast';
 import { Form } from '@primevue/forms';
 import { zodResolver } from '@primevue/forms/resolvers/zod';
 import { z } from 'zod';
+import FileUpload from 'primevue/fileupload';
 
 const toast = useToast();
-const icondisplay = ref();
-const templatedisplay = ref();
+const isFocus = ref(false)
+const submitted = ref(false)
 const form = useForm({
-    email: '',
-    password: '',
-    remember: false,
+    uuid: '',
+    judul: '',
+    deskripsi: '',
+    tanggal: null,
+    jam: null,
+    lokasi: '',
+    alur: '',
+    problem: '',
+    petugas: '',
+    foto_awal: null,
+    foto_akhir: null,
 });
-const selectedCategory = ref();
-const categories = ref([
-    { name: 'Lokal Kominfo-Setda', value: 'KS' },
-    { name: 'Intra OPD', value: 'OPD' },
-    { name: 'Metro Kecamatan', value: 'Metro' },
-    { name: 'Internet', value: 'Int' },
-    { name: 'Petugas', value: 'Ptg' }
-]);
 
-const selectedStatus = ref();
-const status = ref([
-    {name: 'On Progress', value: 'progress'},
-    {name: 'On Monitoring', value: 'monitoring'},
-    {name: 'Finish', value: 'finish'}
-]);
+onMounted(() => {
+    initData()
+})
+
 
 const initialValues = ref({
-    address: ''
+    judul: '',
+    tanggal: null,
+    jam: null,
+    lokasi: '',
+    alur: '',
+    petugas: '',
 });
 
 const resolver = ref(zodResolver(
     z.object({
-        address: z.string().min(1, { message: 'Address is required.' })
+        judul: z.string().min(1, { message: 'Judul wajib diisi.' }),
+        tanggal: z.preprocess((val) => {
+                    if (val === '' || val === null) {
+                        return null
+                    }
+                    return new Date(val)
+                }, z.union([z.date(), z.null().refine((val) => val !== null, {message: 'Tanggal Mulai wajib diisi'})])),
+        jam: z.preprocess((val) => {
+                    if (val === '' || val === null) {
+                        return null
+                    }
+                    return new Date(val)
+                }, z.union([z.date(), z.null().refine((val) => val !== null, {message: 'Jam Mulai wajib diisi'})])),
+        lokasi: z.string().min(1, { message: 'Lokasi wajib diisi.' }),
+        alur: z.string().min(1, { message: 'Alur wajib diisi.' }),
+        petugas: z.string().min(1, { message: 'Petugas wajib diisi.' }),
     })
 ));
 
+// selecting image on before
+const src = ref(null)
+const clearing = ref(false)
+function onFileSelect(event) {
+    const file = event.files[0];
+    const reader = new FileReader();
+
+    reader.onload = async (e) => {
+        src.value = e.target.result;
+        form.foto_awal = e.target.result
+        clearing.value = true
+    };
+
+    reader.readAsDataURL(file);
+}
+function onClearFile() {
+    src.value = null
+    form.foto_awal = null
+    clearing.value = false
+}
+
+// selecting image on after
+const srcFinish = ref(null)
+const fClearing = ref(false)
+function onFileConfirm(event) {
+    const file = event.files[0];
+    const reader = new FileReader();
+
+    reader.onload = async (e) => {
+        srcFinish.value = e.target.result;
+        form.foto_akhir = e.target.result
+        fClearing.value = true
+    };
+
+    reader.readAsDataURL(file);
+}
+function onClearFileConfirm() {
+    srcFinish.value = null
+    form.foto_akhir = null
+    fClearing.value = false
+}
+
+const initData = () => {
+    form.reset()
+    isFocus.value = true
+    src.value = null
+    clearing.value = false
+    srcFinish.value = null
+    fClearing.value = false
+}
+
 const onFormSubmit = ({ valid }) => {
-    console.log('form', valid)
     if (valid) {
-        toast.add({ severity: 'success', summary: 'Form is submitted.', life: 3000 });
+        submitted.value = true
+        form.post('/maintenance/save', {
+            resetOnSuccess: true,
+            onSuccess: (res) => {
+                const messages = res.props.flash.message
+                alert_response(messages)
+
+                initData()
+                submitted.value = false
+            },
+            onError: () => {
+                toast.add({ severity: 'error', summary: 'Peringatan', detail: 'Terjadi kesalahan pada sistem', life: 3000 });
+            }
+        })
+    } else {
+        toast.add({ severity: 'warn', summary: 'Peringatan', detail: 'Mohon isi semua data yang diwajibkan!', life: 3000 });
     }
 };
 
+const alert_response = (rsp) => {
+    if (rsp.status === 'failed') {
+        toast.add({ severity: 'error', summary: 'Error', detail: rsp.msg, life: 3000 });
+    } else if (rsp.status === 'success') {
+        toast.add({ severity: 'success', summary: 'Berhasil', detail: rsp.msg, life: 3000 });
+    }
+}
 </script>
 
 <template>
     <Toast />
     <Head title="Maintenance" />
-
-    <Card class="w-full">
-        <template #title>Data Maintenance</template>
-        <template #content>
-            <DataTable :value="customers" paginator :rows="5" :rowsPerPageOptions="[5, 10, 20, 50]" tableStyle="min-width: 50rem">
-                <Column field="name" header="Waktu Kejadian" style="width: 25%"></Column>
-                <Column field="country.name" header="Country" style="width: 25%"></Column>
-                <Column field="company" header="Company" style="width: 25%"></Column>
-                <Column field="representative.name" header="Representative" style="width: 25%"></Column>
-                <template #paginatorcontainer="{ first, last, page, pageCount, prevPageCallback, nextPageCallback, totalRecords }">
-                    <div class="flex items-center gap-4 border border-primary bg-transparent rounded-full w-full py-1 px-2 justify-between">
-                        <Button icon="pi pi-chevron-left" rounded text @click="prevPageCallback" :disabled="page === 0" />
-                        <div class="text-color font-medium">
-                            <span class="hidden sm:block">Showing {{ first }} to {{ last }} of {{ totalRecords }}</span>
-                            <span class="block sm:hidden">Page {{ page + 1 }} of {{ pageCount }}</span>
-                        </div>
-                        <Button icon="pi pi-chevron-right" rounded text @click="nextPageCallback" :disabled="page === pageCount - 1" />
-                    </div>
-                </template>
-            </DataTable>
-        </template>
-    </Card>
-
 
     <div id="features" class="py-6 px-6 lg:px-20 mt-0 mx-0 lg:mx-40">
         <div>
@@ -84,19 +152,33 @@ const onFormSubmit = ({ valid }) => {
         <Form v-slot="$form" :resolver="resolver" :initialValues="initialValues" @submit="onFormSubmit" class="flex flex-col gap-4">
             <div class="card flex flex-wrap gap-4">
                 <div class="flex-auto">
-                    <label for="icondisplay" class="font-bold block"> Tanggal Kejadian </label>
-                    <DatePicker v-model="icondisplay" showIcon fluid iconDisplay="input" inputId="icondisplay" />
+                    <label for="" class="font-bold block"> Judul </label>
+                    <InputText v-model="form.judul" maxlength="100" placeholder="Judul Kegiatan" class="w-full" name="judul" :autofocus="isFocus" />
+                    <Message v-if="$form.judul?.invalid" severity="error" size="small" variant="simple">{{ $form.judul.error?.message }}</Message>
                 </div>
                 <div class="flex-auto">
-                    <label for="icondisplay" class="font-bold block">Jam Kejadian </label>
-                    <DatePicker v-model="templatedisplay" showIcon fluid iconDisplay="input" timeOnly inputId="templatedisplay">
+                    <label for="" class="font-bold block"> Deskripsi (opsional) </label>
+                    <InputText v-model="form.deskripsi" maxlength="100" placeholder="Deskripsi" class="w-full" name="deskripsi" />
+                    <!-- <Message v-if="$form.deskripsi?.invalid" severity="error" size="small" variant="simple">{{ $form.deskripsi.error?.message }}</Message> -->
+                </div>
+            </div>
+            <div class="card flex flex-wrap gap-4 -mt-20">
+                <div class="flex-auto">
+                    <label for="mulai" class="font-bold block"> Tanggal Mulai </label>
+                    <DatePicker v-model="form.tanggal" showIcon fluid iconDisplay="input" inputId="mulai" name="tanggal" />
+                    <Message v-if="$form.tanggal?.invalid" severity="error" size="small" variant="simple">{{ $form.tanggal.error?.message }}</Message>
+                </div>
+                <div class="flex-auto">
+                    <label for="jam" class="font-bold block">Jam Mulai </label>
+                    <DatePicker v-model="form.jam" showIcon fluid iconDisplay="input" timeOnly inputId="jam" name="jam">
                         <template #inputicon="slotProps">
                             <i class="pi pi-clock" @click="slotProps.clickCallback" />
                         </template>
                     </DatePicker>
+                    <Message v-if="$form.jam?.invalid" severity="error" size="small" variant="simple">{{ $form.jam.error?.message }}</Message>
                 </div>
             </div>
-            <div class="card flex flex-wrap gap-4 -mt-20">
+            <!-- <div class="card flex flex-wrap gap-4 -mt-20">
                 <div class="flex-auto">
                     <label for="icondisplay" class="font-bold block"> Tanggal Selesai </label>
                     <DatePicker v-model="icondisplay" showIcon fluid iconDisplay="input" inputId="icondisplay" />
@@ -109,43 +191,51 @@ const onFormSubmit = ({ valid }) => {
                         </template>
                     </DatePicker>
                 </div>
-            </div>
+            </div> -->
             <div class="card flex flex-wrap gap-4 -mt-20">
                 <div class="flex-auto">
-                    <label for="icondisplay" class="font-bold block"> Site/Lokasi </label>
-                    <Textarea v-model="value" rows="6" style="resize: none;" class="w-full" />
+                    <label for="" class="font-bold block"> Lokasi </label>
+                    <InputText v-model="form.lokasi" placeholder="Lokasi" maxlength="100" class="w-full" name="lokasi" />
+                    <Message v-if="$form.lokasi?.invalid" severity="error" size="small" variant="simple">{{ $form.lokasi.error?.message }}</Message>
                 </div>
                 <div class="flex-auto">
-                    <label for="icondisplay" class="font-bold block"> Deskripsi Permasalahan </label>
-                    <Textarea v-model="value" rows="6" style="resize: none;" class="w-full" />
-                </div>
-            </div>
-            <div class="card flex flex-wrap gap-4 -mt-20">
-                <div class="flex-auto">
-                    <label for="icondisplay" class="font-bold block"> Kategori Permasalahan </label>
-                    <Select v-model="selectedCategory" :options="categories" optionLabel="name" placeholder="Pilih Kategori" class="w-full" />
-                </div>
-                <div class="flex-auto">
-                    <label for="icondisplay" class="font-bold block"> Petugas </label>
-                    <InputText v-model="text1" placeholder="Nama Petugas" class="w-full" />
+                    <label for="" class="font-bold block"> Petugas </label>
+                    <InputText v-model="form.petugas" placeholder="Nama Petugas" maxlength="50" class="w-full" name="petugas" />
+                    <Message v-if="$form.petugas?.invalid" severity="error" size="small" variant="simple">{{ $form.petugas.error?.message }}</Message>
                 </div>
             </div>
             <div class="card flex flex-wrap gap-4 -mt-20">
                 <div class="flex-auto">
-                    <label for="icondisplay" class="font-bold block"> Action/Solusi </label>
-                    <Textarea v-model="value" name="address" rows="6" style="resize: none;" class="w-full" />
-                    <Message v-if="$form.address?.invalid" severity="error" size="small" variant="simple">{{ $form.address.error?.message }}</Message>
+                    <label for="" class="font-bold block"> Alur Perawatan </label>
+                    <Textarea v-model="form.alur" rows="6" style="resize: none;" class="w-full" name="alur" />
+                    <Message v-if="$form.alur?.invalid" severity="error" size="small" variant="simple">{{ $form.alur.error?.message }}</Message>
+                </div>
+                <div class="flex-auto">
+                    <label for="" class="font-bold block"> Trouble/Masalah (opsional) </label>
+                    <Textarea v-model="form.problem" rows="6" style="resize: none;" class="w-full" name="problem" />
                 </div>
             </div>
             <div class="card flex flex-wrap gap-4 -mt-20">
-                <div class="flex-auto">
-                    <label for="" class="font-bold block"> Status </label>
-                    <Select v-model="selectedStatus" :options="status" optionLabel="name" placeholder="Pilih Status" class="w-full" />
+                <div class="flex-auto justify-items-center">
+                    <label for="" class="font-bold block"> Foto Sebelum (opsional) </label>
+                    <FileUpload mode="basic" @select="onFileSelect" customUpload auto severity="secondary" class="p-button-outlined mb-3" accept=".png,.jpg,.jpeg" />
+                    <Button type="button" label="Hapus" severity="warn" icon="pi pi-trash" class="mb-5" raised v-if="clearing" @click="onClearFile" :disabled="submitted" />
+                    <img v-if="src" :src="src" alt="Image" class="shadow-md rounded-xl w-full sm:w-64" />
+                </div>
+                <div class="flex-auto justify-items-center">
+                    <label for="" class="font-bold block"> Foto Sesudah (opsional) </label>
+                    <FileUpload mode="basic" @select="onFileConfirm" customUpload auto severity="secondary" class="p-button-outlined mb-3" accept=".png,.jpg,.jpeg" />
+                    <Button type="button" label="Hapus" severity="warn" icon="pi pi-trash" class="mb-5" raised v-if="fClearing" @click="onClearFileConfirm" />
+                    <img v-if="srcFinish" :src="srcFinish" alt="Image" class="shadow-md rounded-xl w-full sm:w-64" />
                 </div>
             </div>
-            <div class="card flex flex-wrap gap-4 -mt-20">
-                <div class="flex-auto">
-                    <Button type="submit" label="Success" severity="success" raised />
+            <div class="card flex flex-wrap gap-4 -mt-16 justify-items-center">
+                <Divider />
+            </div>
+            <div class="card flex flex-wrap gap-4 -mt-12 justify-items-center">
+                <div class="flex-auto gap-4 text-center">
+                    <Button type="button" label="Reset" severity="secondary" class="flex w-3/12 btn-block mr-5" icon="pi pi-times" raised @click="initData" :disabled="submitted" />
+                    <Button type="submit" :label="submitted ? 'Menyimpan' : 'Simpan'" severity="success" class="flex w-3/12 btn-block" :icon="submitted ? 'pi pi-spin pi-spinner' : 'pi pi-save'" raised :disabled="submitted" />
                 </div>
             </div>
         </Form>

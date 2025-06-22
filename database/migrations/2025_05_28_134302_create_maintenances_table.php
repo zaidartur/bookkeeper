@@ -17,11 +17,13 @@ return new class extends Migration
             $table->date('tanggal_mulai');
             $table->string('jam_mulai');
             $table->string('judul');
-            $table->string('deskripsi');
-            $table->text('alur_perawatan');
+            $table->string('deskripsi')->nullable();
+            $table->text('lokasi');
+            $table->text('alur_perawatan')->nullable();
             $table->text('problem')->nullable();
             $table->text('petugas');
-            $table->text('foto')->nullable();
+            $table->mediumText('foto_sebelum')->nullable();
+            $table->mediumText('foto_setelah')->nullable();
             $table->string('user_id', '64');
             $table->timestamps();
         });

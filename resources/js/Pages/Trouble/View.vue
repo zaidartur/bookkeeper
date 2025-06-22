@@ -487,7 +487,7 @@ const alert_response = (rsp) => {
                 </div>
                 <div class="card flex flex-wrap gap-4 -mt-20">
                     <div class="flex-auto">
-                        <label for="" class="font-bold block"> Site/Lokasi </label>
+                        <label for="" class="font-bold block"> Lokasi </label>
                         <Textarea v-model="formAdd.lokasi" rows="6" style="resize: none;" class="w-full" name="_lokasi" :invalid="rules._lokasi" @blur="isLokasi" @change="isLokasi" />
                         <Message v-if="rules._lokasi" severity="error" size="small" variant="simple">Lokasi wajib diisi</Message>
                     </div>
@@ -543,7 +543,7 @@ const alert_response = (rsp) => {
                 </div>
                 <div class="card flex flex-wrap gap-4 -mt-20">
                     <div class="flex-auto">
-                        <label for="" class="font-bold block"> Site/Lokasi </label>
+                        <label for="" class="font-bold block"> Lokasi </label>
                         <Textarea v-model="detailLokasi" rows="5" style="resize: none;" class="w-full" disabled />
                     </div>
                     <div class="flex-auto">

@@ -5,7 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\Maintenance;
 use App\Models\Trouble;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Redirect;
 use Inertia\Inertia;
+use Ramsey\Uuid\Uuid;
 
 class MaintenanceController extends Controller
 {
@@ -20,31 +23,59 @@ class MaintenanceController extends Controller
         return Inertia::render('Maintenance', $data);
     }
 
-    public function trouble()
+    public function report()
     {
         $data = [
-            'lists' => [
-                [
-                'starttime' => 'A',
-                'country'   => 'B',
-                'trouble'   => 'C',
-                'category'  => 'D',
-                'status'    => 'progress',
-                ],
-                [
-                'starttime' => 'A1',
-                'country'   => 'B1',
-                'trouble'   => 'C1',
-                'category'  => 'D1',
-                'status'    => 'E1',
-                ],
-            ],
+            'lists' => Maintenance::orderBy('created_at', 'desc')->get(),
         ];
-        return Inertia::render('Trouble', $data);
+        return Inertia::render('ReportMaintenance', $data);
     }
 
-    public function input_form()
+    public function save(Request $request)
     {
-        return Inertia::render('Maintenance');
+        $request->validate([
+            'tanggal'   => 'required|date',
+            'jam'       => 'required',
+            'judul'     => 'required|string|max:100',
+            'lokasi'    => 'required|string|max:100',
+            'alur'      => 'required|string',
+            'petugas'   => 'required|string|max:50',
+        ]);
+
+        $uuid = Uuid::uuid4()->toString();
+        $data = [
+            'uuid'          => $uuid,
+            'tanggal_mulai' => date_format(date_create($request->tanggal), 'Y-m-d'),
+            'jam_mulai'     => date_format(date_create($request->tanggal), 'H:i'),
+            'judul'         => $request->judul,
+            'deskripsi'     => $request->deskripsi,
+            'lokasi'        => $request->lokasi,
+            'alur_perawatan'=> $request->alur,
+            'problem'       => $request->problem,
+            'petugas'       => $request->petugas,
+            'foto_sebelum'  => $request->foto_awal,
+            'foto_setelah'  => $request->foto_akhir,
+            'user_id'       => Auth::user()->uuid,
+            'created_at'    => date('Y-m-d H:i:s'),
+        ];
+
+        $save = Maintenance::insert($data);
+        if ($save) {
+            $res = ['status' => 'success', 'msg' => 'Data berhasil disimpan'];
+        } else {
+            $res = ['status' => 'failed', 'msg' => 'Data gagal disimpan'];
+        }
+
+        return Redirect::route('maintenance')->with('message', $res);
+    }
+
+    public function update(Request $request)
+    {
+        //
+    }
+
+    public function delete(Request $request)
+    {
+        //
     }
 }
