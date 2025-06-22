@@ -11,14 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('ip_addresses', function (Blueprint $table) {
+        Schema::create('ip_assignments', function (Blueprint $table) {
             $table->id();
-            $table->string('uuid', '40')->unique();
-            $table->string('network_ip', '16')->unique();
-            $table->string('subnet_mask', '16');
-            $table->integer('cidr');
-            $table->integer('total_ip');
-            $table->integer('usable_hosts');
+            $table->string('uuid_ip', '40');
+            $table->string('assigned_ip', '16')->unique();
+            $table->string('device', '100');
+            $table->string('kategori', '100');
+            $table->string('status', '50')->nullable();
             $table->string('keterangan')->nullable();
             $table->string('user_id', '40');
             $table->timestamps();
@@ -30,6 +29,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('ip_addresses');
+        Schema::dropIfExists('ip_assignments');
     }
 };

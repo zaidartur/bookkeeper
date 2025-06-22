@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -45,5 +46,45 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    /**
+     * Get all of the trouble for the User
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function trouble(): HasMany
+    {
+        return $this->hasMany(Trouble::class, 'created_by', 'uuid');
+    }
+
+    /**
+     * Get all of the confirmed for the User
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function confirmed(): HasMany
+    {
+        return $this->hasMany(Trouble::class, 'confirmed_by', 'uuid');
+    }
+
+    /**
+     * Get all of the ip_address for the User
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function ip_address(): HasMany
+    {
+        return $this->hasMany(IpAddress::class, 'user_id', 'uuid');
+    }
+
+    /**
+     * Get all of the ip_assign for the User
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function ip_assign(): HasMany
+    {
+        return $this->hasMany(IpAssignments::class, 'user_id', 'uuid');
     }
 }

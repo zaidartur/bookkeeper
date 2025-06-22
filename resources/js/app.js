@@ -39,7 +39,8 @@ import Divider from 'primevue/divider';
 import DataTable from 'primevue/datatable';
 import Column from 'primevue/column';
 import ColumnGroup from 'primevue/columngroup';
-import Row from 'primevue/row';  
+import Row from 'primevue/row';
+import KeyFilter from 'primevue/keyfilter';
 
 import '@/assets/styles.scss';
 import '@/assets/tailwind.css';
@@ -73,6 +74,7 @@ createInertiaApp({
             .directive('ripple', Ripple)
             .directive('styleclass', StyleClass)
             .directive('animateonscroll', AnimateOnScroll)
+            .directive('keyfilter', KeyFilter)
 
             .component('Toast', Toast)
             .component('ConfirmDialog', ConfirmDialog)
