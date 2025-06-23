@@ -23,7 +23,7 @@ const layoutState = reactive({
 // read saved theme from localStorage
 if (localStorage.getItem('themes') !== null) {
     const theme = localStorage.getItem('themes')
-    console.log(theme)
+    console.log('ini', theme)
     _darkTheme = JSON.parse(theme)
     layoutConfig.darkTheme = _darkTheme
     if (_darkTheme) {
