@@ -6,6 +6,7 @@ use App\Models\Cidr;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class CidrSeeder extends Seeder
 {
@@ -85,7 +86,8 @@ class CidrSeeder extends Seeder
         ];
 
         foreach ($datas as $key => $data) {
-            Cidr::create($data);
+            Log::info($key, $data);
+            Cidr::insert($data);
         }
     }
 }
