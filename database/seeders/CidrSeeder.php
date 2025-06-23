@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\Cidr;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 
 class CidrSeeder extends Seeder
 {
@@ -83,6 +84,7 @@ class CidrSeeder extends Seeder
             ]
         ];
 
-        Cidr::create($data);
+        // Cidr::create($data);
+        DB::table('cidrs')->insert($data);
     }
 }
