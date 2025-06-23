@@ -21,7 +21,7 @@ class CidrSeeder extends Seeder
         // (26, '255.255.255.192','0.0.0.63',       64,       62,       NULL, 6),
         // (30, '255.255.255.252','0.0.0.3',        4,        2,        NULL, 2);
 
-        $data = [
+        $datas = [
             [
                 'cidr'          => 8,
                 'subnet_mask'   => '255.0.0.0',
@@ -84,7 +84,8 @@ class CidrSeeder extends Seeder
             ]
         ];
 
-        // Cidr::create($data);
-        DB::table('cidrs')->insert($data);
+        foreach ($datas as $key => $data) {
+            Cidr::create($data);
+        }
     }
 }
