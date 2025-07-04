@@ -56,7 +56,7 @@ const env = page.props.env
                     </g>
                 </svg>
 
-                <span>SAKAI</span>
+                <span>DC KRA</span>
             </router-link>
         </div>
 

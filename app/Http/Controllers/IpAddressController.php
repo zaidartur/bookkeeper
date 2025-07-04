@@ -5,20 +5,37 @@ namespace App\Http\Controllers;
 use App\Models\Cidr;
 use App\Models\IpAddress;
 use App\Models\IpAssignments;
+use App\Models\Router;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class IpAddressController extends Controller
 {
+    private $router;
+    public function __construct() {
+        $this->router = new Router();
+    }
+
     public function view()
     {
+        // $data = [
+        //     'subnets'   => Cidr::orderBy('cidr')->get(),
+        //     'networks'  => IpAddress::orderBy('network_ip', 'asc')->get(),
+        //     'lists'     => IpAssignments::with(['ip_address', 'user'])->orderBy('assigned_ip')->get(),
+        //     'monitor'   => $this->router->default(),
+        // ];
+
         $data = [
-            'subnets'   => Cidr::orderBy('cidr')->get(),
-            'networks'  => IpAddress::orderBy('network_ip', 'asc')->get(),
-            'lists'     => IpAssignments::with(['ip_address', 'user'])->orderBy('assigned_ip')->get(),
+            'router'   => $this->router->default(),
         ];
 
         return Inertia::render('Network', $data);
+    }
+
+    public function monitoring(Request $request)
+    {
+        // $request = Request();
+        return $this->router->monitoring($request->id);
     }
 
     public function save(Request $request)

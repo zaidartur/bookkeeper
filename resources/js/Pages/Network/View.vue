@@ -1,100 +1,304 @@
 <script setup>
-import { ref, defineProps, onMounted } from 'vue'
+import { ref, defineProps, onMounted, onBeforeUnmount, computed, shallowRef } from 'vue'
 import { Head, useForm } from '@inertiajs/vue3';
+import axios from 'axios';
+import Panel from 'primevue/panel';
+import Badge from 'primevue/badge';
+import OverlayBadge from 'primevue/overlaybadge';
+import Tag from 'primevue/tag';
 import Popover from 'primevue/popover';
 import InputMask from 'primevue/inputmask';
 import IftaLabel from 'primevue/iftalabel';
+import Fieldset from 'primevue/fieldset';
+import * as echarts from 'echarts';
+import { list } from 'postcss';
+import { useLayout } from '@/Layouts/composables/layout';
 
 const datas = defineProps({
-    subnets: Object,
-    networks: Object,
-    lists: Object,
+    routers: Object,
 })
 
-const subnet = ref(Array())
-const network = ref(Array())
+const { layoutConfig } = useLayout()
 const lists = ref(Array())
+const ethernet = ref(null)
+const chartData = ref()
+const chartRefs = shallowRef([])
+const chartInstances = shallowRef([])
+const options = shallowRef([])
+const isDarkMode = computed(() => {
+    return layoutConfig.darkTheme
+})
 
 const initData = () => {
-    subnet.value = []
-    network.value = []
     lists.value = []
-
-    if (datas.subnets.length > 0) {
-        datas.subnets.map((sub) => {
-            subnet.value.push(sub)
-        })
-    }
-
-    if (datas.networks.length > 0) {
-        datas.networks.map((nt) => {
-            network.value.push(nt)
-        })
-    }
-
-    if (datas.lists.length > 0) {
-        datas.lists.map((ls) => {
+    options.value = []
+    const parsing = JSON.parse(datas.routers)
+    if (parsing.length > 0) {
+        parsing.map((ls) => {
             lists.value.push(ls)
-        })
-    }
-    
-    console.log(subnet.value, network.value)
-}
+            const init = initOption()
+            options.value.push(init)
 
-onMounted(() => {
-    initData()
-})
-
-const popCidr = ref()
-const toggle = (event) => {
-    popCidr.value.toggle(event);
-}
-
-const popIp = ref()
-const toggleIp = (event) => {
-    popIp.value.toggle(event);
-}
-
-const submitted = ref(false)
-const dialogSubnet = ref(false)
-const dialogNetwork = ref(false)
-const dialogHost = ref(false)
-const headerNetwork = ref('Add New Network')
-const formSubnet = useForm()
-const formNetwork = useForm({
-    uuid: '',
-    network: '',
-    subnet: '',
-    cidr: null,
-    total: 0,
-    usable: 0,
-    keterangan: '',
-})
-const formHost = useForm()
-
-
-
-const addNetwork = () => {
-    formNetwork.reset()
-    dialogNetwork.value = true
-}
-
-const selectSubnet = (e) => {
-    formNetwork.subnet = ''
-    formNetwork.total = 0
-    if (e && e.value > 0) {
-        subnet.value.some((sm) => {
-            if (sm.cidr === e.value) {
-                formNetwork.subnet = sm.subnet_mask
-                formNetwork.total = new Intl.NumberFormat('id-ID').format(sm.usable_host)
-                return true
+            if (ls) {
+                setInterval(() => {
+                    setUpdate(ls.id)
+                }, 8000)
             }
         })
     }
 }
 
-const onSubmitNetwork = () => {
-    console.log(formNetwork)
+onMounted(() => {
+    initCharts()
+    lists.value.forEach((ls) => {
+        if (ls) {
+            setUpdate(ls.id)
+        }
+    })
+    // console.log('lists', lists.value)
+})
+
+onBeforeUnmount(() => {
+    disposeCharts()
+});
+
+
+let dataTx = []
+let dataRx = []
+
+const update_graph = (id) => {
+    axios.post('/network/graphic', {id: id}).then((response) => {
+        // console.log(res.data)
+        const res = response.data
+        if (res) {
+            // dataChart.value.datasets[0].data = [20]
+            // setChartData().labels.push(res.time)
+            console.log(res)
+            // chartData.value.labels.push(res.time)
+            const data = chartData.value.datasets
+            const sizes = ['bps', 'kbps', 'Mbps', 'Gbps', 'Tbps'];
+            data.forEach((dt, d) => {
+                if (dt.label === 'Rx') {
+                    const bytes = parseInt(res.rx)
+                    if (bytes == 0) return '0 bps';
+                    const i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)));
+                    const rx = parseFloat((bytes / Math.pow(1024, i)).toFixed(2))
+                    // chartData.value.datasets[d].data.push(rx)
+                    dataRx.push(3)
+                    const ar = chartData.value.datasets[d].data
+                    console.log('rx[]', ar)
+                    // console.log('rx', chartData.value.datasets[d].data[0])
+                } else if (dt.label === 'Tx') {
+                    const bytes = parseInt(res.tx)
+                    if (bytes == 0) return '0 bps';
+                    const i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)));
+                    const tx = parseFloat((bytes / Math.pow(1024, i)).toFixed(2))
+                    dataTx = dataTx ? (dataTx + ',' + tx) : (tx)
+                    // chartData.value.datasets[d].data.push(tx)
+                    // console.log('tx', chartData.value.datasets[d].data[0])
+                }
+            })
+            
+            chartData.value = setChartData();
+            // chartOptions.value = setChartOptions();
+        }
+    })
+}
+
+const test = () => {
+    //
+}
+
+const setUpdate = (id) => {
+    if (id > -1) {
+        // console.log(id)
+        axios.post('/network/graphic', {id: id}).then((response) => {
+            const res = response.data
+            if (res) {
+                // console.log(res)
+                ethernet.value = res.name
+                updateInterval(res.time, res.rx, res.tx)
+            }
+        })
+    }
+}
+
+const updateInterval = (label, rx, tx) => {
+    // console.log('updating...')
+    updateChart(label, rx, tx)
+    chartInstances.value.forEach((instance, index) => {
+        if (instance) {
+        const { animationDuration, animationEasing, ...rest } = options.value[index];
+        instance.setOption({
+            ...rest,
+            animation: true
+        }, true);
+        }
+    });
+    window.dispatchEvent(new Event('resize')); // Trigger resize to handle container changes
+}
+
+
+const colors = ['#5470C6', '#EE6666'];
+
+const initOption = () => {
+    return {
+        color: colors,
+        updates: 0,
+        tooltip: {
+            trigger: 'axis',
+            axisPointer: {
+                type: 'cross'
+            }
+        },
+        legend: {},
+        grid: {
+            top: 70,
+            bottom: 50
+        },
+        xAxis: {
+            type: 'category',
+            axisTick: {
+                alignWithLabel: true
+            },
+            axisLine: {
+                onZero: false,
+            },
+            axisPointer: {
+                label: {
+                    formatter: function (params) {
+                        return (
+                            'Waktu : ' +
+                            params.value
+                        );
+                    }
+                }
+            },
+            splitLine: {
+                show: false
+            },
+
+            // prettier-ignore
+            // data: ['2016-1', '2016-2', '2016-3', '2016-4', '2016-5', '2016-6', '2016-7', '2016-8', '2016-9']
+            data: []
+        },
+        yAxis: [
+            {
+                type: 'value',
+                // boundaryGap: [0, '100%'],
+                splitLine: {
+                    show: false
+                },
+                // labels: {
+                //     formatter: function () {      
+                //         var bytes = this.value;                          
+                //         var sizes = ['bps', 'kbps', 'Mbps', 'Gbps', 'Tbps'];
+                //         if (bytes == 0) return '0 bps';
+                //         var i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)));
+                //         return parseFloat((bytes / Math.pow(1024, i)).toFixed(2)) + ' ' + sizes[i];                    
+                //     },
+                // },   
+            }
+        ],
+        series: [
+            {
+                name: 'Tx',
+                type: 'line',
+                // stack: 'Total',
+                smooth: true,
+                emphasis: {
+                    focus: 'series'
+                },
+                // areaStyle: {},
+                // data: [
+                //     2.6, 5.9, 9.0, 26.4, 28.7, 70.7, 175.6, 182.2, 48.7
+                // ]
+                data: []
+            },
+            {
+                name: 'Rx',
+                type: 'line',
+                // stack: 'Total',
+                smooth: true,
+                emphasis: {
+                    focus: 'series'
+                },
+                // areaStyle: {},
+                // data: [
+                //     3.9, 5.9, 11.1, 18.7, 48.3, 69.2, 231.6, 46.6, 55.4
+                // ]
+                data: []
+            }
+        ]
+    }
+}
+
+initData()
+const setChartRef = (el, index) => {
+    // console.log(index, chartRefs.value)
+    chartRefs.value[index] = el
+};
+
+const initCharts = () => {
+    chartInstances.value = options.value.map((chart, index) => {
+        if (chartRefs.value[index]) {
+            const instance = echarts.init(chartRefs.value[index]);
+            instance.setOption(chart);
+            return instance;
+        }
+        return null;
+    });
+    window.addEventListener('resize', resizeCharts);
+};
+const resizeCharts = () => {
+    chartInstances.value.forEach(instance => {
+        if (instance) instance.resize();
+    });
+};
+const disposeCharts = () => {
+    window.removeEventListener('resize', resizeCharts);
+    chartInstances.value.forEach(instance => {
+        if (instance) instance.dispose();
+    });
+    chartInstances.value = [];
+}
+
+function generateRandomData(count, min, max) {
+    return Array.from({ length: count }, () => 
+        Math.floor(Math.random() * (max - min + 1)) + min
+    );
+}
+
+const updateChart = (label, rx, tx) => {
+    const maxPoints = 10
+    const sizes = ['bps', 'kbps', 'Mbps', 'Gbps', 'Tbps']
+    options.value.forEach(chart => {
+        chart.updates++;
+        const option = chart;
+        // console.log('opt', option)
+
+        if (option.xAxis.data.length >= maxPoints) {
+            option.xAxis.data.shift();
+            option.series.forEach(series => series.data.shift());
+        }
+
+        // Add new time label
+        option.xAxis.data.push(label)
+        // const now = new Date();
+        // option.xAxis.data.push(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+        
+        // Add new data points
+        option.series.forEach(series => {
+            const bytes = series.name === 'Tx' ? parseInt(tx) : parseInt(rx)
+            let fix = 0
+            if (bytes > 0) {
+                const i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)))
+                // return parseFloat((bytes / Math.pow(1024, i)).toFixed(2)) + ' ' + sizes[i];  
+                fix = parseFloat((bytes / Math.pow(1024, i)).toFixed(2))
+            }
+            series.data.push(bytes);
+        });
+    });
 }
 </script>
 
@@ -103,173 +307,83 @@ const onSubmitNetwork = () => {
     <ConfirmDialog></ConfirmDialog>
     <Head title="Network IP" />
 
-    <Card class="w-full">
-        <template #title><i class="pi pi-sitemap"></i> Data Network IP</template>
-        <template #content>
-            <!-- <div class="mt-5 mb-5">
-                <Button type="button" label="Buat Data Trouble" severity="info" icon="pi pi-plus-circle" raised @click="showModal" />
-            </div> -->
-            <div>
-                <DataTable :value="lists" paginator :rows="25" :rowsPerPageOptions="[5, 10, 15, 20, 50]" tableStyle="min-width: 50rem">
-                    <template #header>
-                        <div class="flex flex-row justify-between">
-                            <div class="flex basis-8/12 gap-5">
-                                <Button type="button" icon="pi pi-filter-slash" label="Clear Filter" class="basis-2/12" outlined @click="clearFilter()" />
-                                <Button type="button" icon="pi pi-sitemap" severity="info" label="Add IP Host" class="basis-2/12" @click="clearFilter()" />
-                                <Button type="button" icon="pi pi-sitemap" severity="info" label="IP Address" class="basis-2/12" outlined @click="toggleIp" />
-                                <Button type="button" icon="pi pi-sitemap" severity="help" label="CIDR" class="basis-2/12" outlined @click="toggle" />
-                            </div>
-                            <div class="flex basis-4/12 gap-5 justify-end">
-                                <Button type="button" icon="pi pi-file-import" severity="secondary" label="Import Data" class="w-4/12 float-right" outlined @click="false" />
-                            </div>
-                        </div>
-                    </template>
-                    <template #empty><div class="w-full text-center">Tidak ada data.</div></template>
-                    <template #loading><div class="w-full text-center">Memproses data. Harap menunggu.</div> </template>
-
-                    <Column field="assigned_ip" header="IP Host" style="width: 15%">
-                        <template #body="slotProps">
-                            <label>{{ slotProps.data.assigned_ip }}</label>
-                        </template>
-                    </Column>
-                    <Column field="lokasi" header="Parents" style="width: 20%"></Column>
-                    <Column field="problem" header="Device" style="width: 20%"></Column>
-                    <Column field="kategori" header="Kategori" style="width: 15%">
-                        <template #body="slotProps">
-                            {{ setCategories(slotProps.data.kategori) }}
-                        </template>
-                    </Column>
-                    <Column field="keterangan" header="Keterangan" style="width: 10%"></Column>
-                    <Column header="Opsi" style="width: 20%; text-align: right;" class="justify-items-center">
-                        <template #body="slotProps">
-                            <div class="flex gap-4">
-                                <Button type="button" severity="success" icon="pi pi-wrench" variant="outlined" v-tooltip.bottom="'Selesaikan Masalah'" rounded raised @click="confirmDialog(slotProps.data)" />
-                                <Button type="button" severity="info" icon="pi pi-info-circle" variant="outlined" v-tooltip.bottom="'Detail Trouble'" rounded raised />
-                                <Button type="button" severity="warn" icon="pi pi-pencil" v-tooltip.bottom="'Edit Trouble'" rounded raised @click="editForm(slotProps.data)" />
-                                <Button type="button" severity="danger" icon="pi pi-trash" variant="outlined" v-tooltip.bottom="'Hapus Data'" rounded raised @click="deleteData(slotProps.data)" />
-                            </div>
-                        </template>
-                    </Column>
-
-                    <template #paginatorcontainer="{ first, last, page, pageCount, prevPageCallback, nextPageCallback, totalRecords }">
-                        <div class="flex items-center gap-4 border border-primary bg-transparent rounded-full w-full py-1 px-2 justify-between">
-                            <Button icon="pi pi-chevron-left" rounded text @click="prevPageCallback" :disabled="page === 0" />
-                            <div class="text-color font-medium">
-                                <span class="hidden sm:block">Showing {{ first }} to {{ last }} of {{ totalRecords }}</span>
-                                <span class="block sm:hidden">Page {{ page + 1 }} of {{ pageCount }}</span>
-                            </div>
-                            <Button icon="pi pi-chevron-right" rounded text @click="nextPageCallback" :disabled="page === pageCount - 1" />
-                        </div>
-                    </template>
-                </DataTable>
-            </div>
-        </template>
+    
+    <Card class="w-full mb-5">
+        <template #title><i class="pi pi-sitemap"></i> Data Network IP {{ isDarkMode }}</template>
     </Card>
 
-    <Popover ref="popCidr">
-        <div class="flex flex-col gap-4 w-[40rem]">
-            <DataTable :value="subnet" paginator selectionMode="single" :rows="10" :rowsPerPageOptions="[5, 10, 15, 20, 50]" tableStyle="max-width: 40rem">
-                <template #header>
-                    <div class="flex justify-between">
-                        <h4 class="font-bold text-xl text-center w-full">List of CIDR</h4>
-                        <!-- <Button type="button" icon="pi pi-plus-circle" label="Tambah Subnet" size="small" outlined @click="clearFilter()" /> -->
-                    </div>
-                </template>
-                <template #empty><div class="w-full text-center">Tidak ada data.</div></template>
-                <template #loading><div class="w-full text-center">Memproses data. Harap menunggu.</div> </template>
-
-                <Column field="cidr" header="CIDR" class="text-center" style="width: 20%"></Column>
-                <Column field="subnet_mask" header="Subnet Mask" class="text-center" style="width: 20%"></Column>
-                <Column field="wildcard_mask" header="Wildcard" class="text-center" style="width: 20%"></Column>
-                <Column field="total_ip" header="Usable IP" class="text-center" style="width: 20%">
-                    <template #body="slotProps">
-                        <label>{{ new Intl.NumberFormat('id-ID').format(slotProps.data.total_ip) }}</label>
+    <div class="w-full grid grid-cols-2 justify-between gap-4">
+        <Card class="" v-for="(list, l) in lists" :key="l">
+            <template #content>
+                <Panel toggleable>
+                    <template #header>
+                        <label class="text-xl" v-if="list && list.name">{{ list.name }}</label>
+                        <label class="text-xl" v-if="!list">
+                            Router <Badge value="OFF" severity="danger" size="small"></Badge>
+                        </label>
                     </template>
-                </Column>
-                <Column field="ip_class" header="IP Class" class="text-center" style="width: 20%"></Column>
-            </DataTable>
+
+                    <div v-if="list" class="flex gap-4">
+                        <div class="flex-auto">
+                            <label>
+                                Status is <Tag severity="success" value="ON" rounded></Tag>
+                                <br>
+                                Total IP Address : {{ list.data.length }}
+                                <br>
+                                Total assign network : 0
+                            </label>
+                        </div>
+
+                        <div>
+                            <Button type="button" label="Show IP Network" severity="info" icon="pi pi-eye" raised @click="test" />
+                        </div>
+                    </div>
+                    <div v-if="list" class="w-full">
+                        <Divider>Monitoring {{ ethernet }}</Divider>
+                        <div class="echart-container" >
+                            <div :ref="el => setChartRef(el, l)" class="chart"></div>
+                        </div>
+                    </div>
+
+                    <div v-if="!list">
+                        <label class="">
+                            Status is <Tag severity="danger" value="OFF" rounded></Tag>
+                            <br>
+                            Please turn on your router or API router.
+                        </label>
+                    </div>
+                </Panel>
+            </template>
+        </Card>
+    </div>
+
+    <!-- <Panel class="w-full">
+        <div class="echart-container">
+            <h1 class="chart-title">Apache ECharts</h1>
+            <div ref="myCanvas" class="chart"></div>
         </div>
-    </Popover>
-
-    <Popover ref="popIp">
-        <div class="flex flex-col gap-4 w-[40rem]">
-            <DataTable :value="network" paginator :rows="15" :rowsPerPageOptions="[5, 10, 15, 20, 50]" tableStyle="max-width: 40rem">
-                <template #header>
-                    <div class="flex justify-between">
-                        <h4 class="text-xl font-medium">List of IP Address</h4>
-                        <Button type="button" icon="pi pi-plus-circle" label="Tambah IP Address" size="small" outlined @click="addNetwork" />
-                    </div>
-                </template>
-                <template #empty><div class="w-full text-center">Tidak ada data.</div></template>
-                <template #loading><div class="w-full text-center">Memproses data. Harap menunggu.</div> </template>
-
-                <Column header="IP Address/Subnet" class="text-center" style="width: 30%">
-                    <template #body="slotProps">
-                        <label>{{ slotProps.data.network_ip }}/{{ slotProps.data.cidr }}</label>
-                    </template>
-                </Column>
-                <!-- <Column field="cidr" header="Subnet Mask" class="text-center" style="width: 20%"></Column> -->
-                <Column header="Total Host" class="text-center" style="width: 20%">
-                    <template #body="slotProps">
-                        <label>{{ new Intl.NumberFormat('id-ID').format(slotProps.data.usable_hosts)  }}</label>
-                    </template>
-                </Column>
-                <Column header="Usable IP" class="text-center" style="width: 20%">
-                    <template #body="slotProps">
-                        <label>{{ slotProps.data.usable_hosts }}</label>
-                    </template>
-                </Column>
-                <Column field="keterangan" header="Keterangan" class="text-center" style="width: 30%"></Column>
-            </DataTable>
-        </div>
-    </Popover>
-
-    <Dialog v-model:visible="dialogNetwork" maximizable modal :header="headerNetwork" :style="{width: '60rem'}" :breakpoints="{ '1199px': '75vw', '575px': '90vw' }">
-        <div>
-            <Form @submit.prevent="onSubmitNetwork" class="flex flex-col gap-4">
-                <div class="card flex flex-wrap gap-4">
-                    <div class="flex-auto">
-                        <label for="" class="font-bold block"> IP Address </label>
-                        <InputText v-model="formNetwork.network" placeholder="192.168.1.0" class="w-full" name="ip_network" autofocus />
-                        <!-- <Message v-if="rules._kategori" severity="error" size="small" variant="simple">Kategori wajib dipilih</Message> -->
-                    </div>
-                    <div class="flex-auto">
-                        <label for="" class="font-bold block"> Subnet Mask </label>
-                        <Select v-model="formNetwork.cidr" :options="subnet" optionLabel="cidr" optionValue="cidr" showClear name="_cidr" placeholder="Pilih Subnet" class="w-full" @change="selectSubnet($event)" />
-                        <!-- <Message v-if="rules._petugas" severity="error" size="small" variant="simple">Nama Petugas wajib diisi</Message> -->
-                    </div>
-                </div>
-                <div class="card flex flex-wrap gap-4 -mt-20">
-                    <div class="flex-auto">
-                        <IftaLabel>
-                            <InputText v-model="formNetwork.total" placeholder="0" v-keyfilter.num class="w-full" name="total" id="total" readonly />
-                            <label for="total" class="font-bold block"> Total Host </label>
-                        </IftaLabel>
-                        <!-- <Message v-if="rules._kategori" severity="error" size="small" variant="simple">Kategori wajib dipilih</Message> -->
-                    </div>
-                    <div class="flex-auto">
-                        <IftaLabel>
-                            <label for="subnet_sel" class="font-bold block"> Subnet Mask </label>
-                            <InputText v-model="formNetwork.subnet" placeholder="0" class="w-full" name="subnet_sel" id="subnet_sel" readonly />
-                        </IftaLabel>
-                        <!-- <Message v-if="rules._petugas" severity="error" size="small" variant="simple">Nama Petugas wajib diisi</Message> -->
-                    </div>
-                </div>
-                <div class="card flex flex-wrap gap-4 -mt-20">
-                    <div class="flex-auto">
-                        <label for="" class="font-bold block"> Keterangan </label>
-                        <Textarea v-model="formNetwork.keterangan" rows="6" style="resize: none;" class="w-full" name="_deskripsi" />
-                    </div>
-                </div>
-
-                <div class="card flex flex-wrap gap-4 -mt-20 justify-items-center">
-                    <div class="flex-auto gap-4 text-center">
-                        <Button type="button" label="Tutup" severity="secondary" class="col-3 btn-block mr-5" icon="pi pi-times" raised @click="dialogNetwork = false" :disabled="submitted" />
-                        <Button type="submit" :label="submitted ? 'Menyimpan' : 'Simpan'" severity="success" :icon="submitted ? 'pi pi-spin pi-spinner' : 'pi pi-save'" raised :disabled="submitted" />
-                    </div>
-                </div>
-            </Form>
-        </div>
-    </Dialog>
-
+    </Panel> -->
 </template>
+
+<style scoped>
+.echart-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    background-color: #030712;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    max-width: 900px;
+    margin: 20px auto;
+}
+
+.chart {
+    width: 100%;
+    height: 500px;
+    min-height: 300px;
+    background-color: white;
+    border-radius: 8px;
+    padding: 15px;
+}
+</style>

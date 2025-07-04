@@ -13,7 +13,7 @@ const model = ref([
         items: [
             { label: 'Maintenance/Perawatan', icon: 'pi pi-fw pi-id-card', to: '/maintenance' },
             { label: 'Troubleshoot', icon: 'pi pi-fw pi-id-card', to: '/trouble' },
-            { label: 'Network IP', icon: 'pi pi-fw pi-check-square', to: '/ip-address' },
+            { label: 'Network IP', icon: 'pi pi-fw pi-check-square', to: '/network' },
         ]
     },
     {

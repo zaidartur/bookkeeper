@@ -44,8 +44,9 @@ Route::prefix('/')->middleware('auth')->group(function() {
         Route::post('/delete', [TroubleController::class, 'delete'])->name('trouble.delete');
     });
 
-    Route::prefix('/ip-address')->group(function() {
+    Route::prefix('/network')->group(function() {
         Route::get('/', [IpAddressController::class, 'view'])->name('ip');
+        Route::post('/graphic', [IpAddressController::class, 'monitoring'])->name('ip.monitoring');
 
         Route::post('/save', [IpAddressController::class, 'save'])->name('ip.save');
         Route::post('/update', [IpAddressController::class, 'update'])->name('ip.update');

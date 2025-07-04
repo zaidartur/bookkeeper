@@ -6,15 +6,13 @@ import View from '@/Pages/Network/View.vue';
 
 const user  = usePage().props.auth.user;
 const datas = defineProps({
-    subnets: Object,
-    networks: Object,
-    lists: Object,
+    router: Object,
 })
 
 </script>
 
 <template>
     <app-layout>
-        <View :user="user" :subnets="datas.subnets" :networks="datas.networks" :lists="datas.lists"/>
+        <View :user="user" :routers="datas.router" />
     </app-layout>
 </template>

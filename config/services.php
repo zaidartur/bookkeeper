@@ -34,5 +34,31 @@ return [
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
     ],
+    'router' => [
+        0 => [
+            'host'  => env('ROUTER_HOST', '192.168.1.1'),
+            'user'  => env('ROUTER_USER', 'admin'),
+            'pass'  => env('ROUTER_PASSWORD', 'admin'),
+            'port'  => env('ROUTER_PORT', '8728'),
+            'name'  => 'Router 1',
+            'id'    => 0,
+        ],
+        1 => [
+            'host'  => '192.168.1.1',
+            'user'  => 'admin',
+            'pass'  => 'admin',
+            'port'  => '8728',
+            'name'  => 'Router 2',
+            'id'    => 1,
+        ],
+        2 => [
+            'host'  => '192.168.1.1',
+            'user'  => 'admin',
+            'pass'  => 'admin',
+            'port'  => '8728',
+            'name'  => 'Router 2',
+            'id'    => 2,
+        ],
+    ],
 
 ];
