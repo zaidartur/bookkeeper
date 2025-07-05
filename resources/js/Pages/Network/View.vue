@@ -4,14 +4,12 @@ import { Head, useForm } from '@inertiajs/vue3';
 import axios from 'axios';
 import Panel from 'primevue/panel';
 import Badge from 'primevue/badge';
-import OverlayBadge from 'primevue/overlaybadge';
 import Tag from 'primevue/tag';
+import IconField from 'primevue/iconfield';
+import InputIcon from 'primevue/inputicon';
 import Popover from 'primevue/popover';
-import InputMask from 'primevue/inputmask';
-import IftaLabel from 'primevue/iftalabel';
-import Fieldset from 'primevue/fieldset';
 import * as echarts from 'echarts';
-import { list } from 'postcss';
+import { FilterMatchMode } from '@primevue/core/api';
 import { useLayout } from '@/Layouts/composables/layout';
 
 const datas = defineProps({
@@ -19,14 +17,25 @@ const datas = defineProps({
 })
 
 const { layoutConfig } = useLayout()
+const isDarkMode = computed(() => {
+    return layoutConfig.darkTheme
+})
+
 const lists = ref(Array())
 const ethernet = ref(null)
-const chartData = ref()
 const chartRefs = shallowRef([])
 const chartInstances = shallowRef([])
 const options = shallowRef([])
-const isDarkMode = computed(() => {
-    return layoutConfig.darkTheme
+
+const networkDlg = ref(false)
+const networkHeader = ref(null)
+const tbList = ref(Array())
+const loading = ref(true)
+const filters = ref({
+    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    address: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    interface: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    network: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
 })
 
 const initData = () => {
@@ -38,12 +47,6 @@ const initData = () => {
             lists.value.push(ls)
             const init = initOption()
             options.value.push(init)
-
-            if (ls) {
-                setInterval(() => {
-                    setUpdate(ls.id)
-                }, 8000)
-            }
         })
     }
 }
@@ -52,6 +55,7 @@ onMounted(() => {
     initCharts()
     lists.value.forEach((ls) => {
         if (ls) {
+            console.log('list', ls)
             setUpdate(ls.id)
         }
     })
@@ -61,49 +65,6 @@ onMounted(() => {
 onBeforeUnmount(() => {
     disposeCharts()
 });
-
-
-let dataTx = []
-let dataRx = []
-
-const update_graph = (id) => {
-    axios.post('/network/graphic', {id: id}).then((response) => {
-        // console.log(res.data)
-        const res = response.data
-        if (res) {
-            // dataChart.value.datasets[0].data = [20]
-            // setChartData().labels.push(res.time)
-            console.log(res)
-            // chartData.value.labels.push(res.time)
-            const data = chartData.value.datasets
-            const sizes = ['bps', 'kbps', 'Mbps', 'Gbps', 'Tbps'];
-            data.forEach((dt, d) => {
-                if (dt.label === 'Rx') {
-                    const bytes = parseInt(res.rx)
-                    if (bytes == 0) return '0 bps';
-                    const i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)));
-                    const rx = parseFloat((bytes / Math.pow(1024, i)).toFixed(2))
-                    // chartData.value.datasets[d].data.push(rx)
-                    dataRx.push(3)
-                    const ar = chartData.value.datasets[d].data
-                    console.log('rx[]', ar)
-                    // console.log('rx', chartData.value.datasets[d].data[0])
-                } else if (dt.label === 'Tx') {
-                    const bytes = parseInt(res.tx)
-                    if (bytes == 0) return '0 bps';
-                    const i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)));
-                    const tx = parseFloat((bytes / Math.pow(1024, i)).toFixed(2))
-                    dataTx = dataTx ? (dataTx + ',' + tx) : (tx)
-                    // chartData.value.datasets[d].data.push(tx)
-                    // console.log('tx', chartData.value.datasets[d].data[0])
-                }
-            })
-            
-            chartData.value = setChartData();
-            // chartOptions.value = setChartOptions();
-        }
-    })
-}
 
 const test = () => {
     //
@@ -140,7 +101,12 @@ const updateInterval = (label, rx, tx) => {
 
 
 const colors = ['#5470C6', '#EE6666'];
-
+const formatter = (bytes) => {
+    const sizes = ['bps', 'Kbps', 'Mbps', 'Gbps', 'Tbps']
+    if (bytes == 0) return '0 bps'
+    const i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)))
+    return parseFloat((bytes / Math.pow(1024, i)).toFixed(2)) + ' ' + sizes[i]
+}
 const initOption = () => {
     return {
         color: colors,
@@ -149,12 +115,39 @@ const initOption = () => {
             trigger: 'axis',
             axisPointer: {
                 type: 'cross'
+            },
+            borderWidth: 1,
+            borderColor: '#ccc',
+            padding: 10,
+            formatter: function(params) {
+                const _tx = formatter(params[0].value)
+                const _rx = formatter(params[1].value)
+
+                return (
+                    '<label><u><b>' + params[0].axisValueLabel + '</b></u></label>' +
+                    '<br><br>' +
+                    '<table style="width: 100%">' +
+                        (
+                            ((parseInt(params[0].value) > parseInt(params[1].value)) || parseInt(params[0].value) === parseInt(params[1].value)) ?
+                            (
+                                '<tr><td style="width: 50%; text-align: left;"><label style="color: '+colors[0]+'"><b><span style="color: '+colors[0]+'; line-height: .4em; font-size: 1em;">&middot;</span> ' + params[0].seriesName + '</b></label></td> <td style="width: 50%; text-align: right;">' + _tx + '</td></tr>' +
+                                '<tr><td style="width: 50%; text-align: left;"><label style="color: '+colors[1]+'"><b><span style="color: '+colors[1]+'; line-height: .4em; font-size: 1em;">&middot;</span> ' + params[1].seriesName + '</b></label></td> <td style="width: 50%; text-align: right;">' + _rx + '</td></tr>'
+                            ) :
+                            (
+                                '<tr><td style="width: 50%; text-align: left;"><label style="color: '+colors[1]+'"><b><span style="color: '+colors[1]+'; line-height: .4em; font-size: 1em;">&middot;</span> ' + params[1].seriesName + '</b></label></td> <td style="width: 50%; text-align: right;">' + _rx + '</td></tr>' +
+                                '<tr><td style="width: 50%; text-align: left;"><label style="color: '+colors[0]+'"><b><span style="color: '+colors[0]+'; line-height: .4em; font-size: 1em;">&middot;</span> ' + params[0].seriesName + '</b></label></td> <td style="width: 50%; text-align: right;">' + _tx + '</td></tr>'
+                            )
+                        ) +
+                    '</table>'
+                )
             }
         },
         legend: {},
         grid: {
             top: 70,
-            bottom: 50
+            bottom: 50,
+            left: 75,
+            right: 15,
         },
         xAxis: {
             type: 'category',
@@ -177,27 +170,27 @@ const initOption = () => {
             splitLine: {
                 show: false
             },
-
-            // prettier-ignore
-            // data: ['2016-1', '2016-2', '2016-3', '2016-4', '2016-5', '2016-6', '2016-7', '2016-8', '2016-9']
             data: []
         },
         yAxis: [
             {
                 type: 'value',
-                // boundaryGap: [0, '100%'],
+                boundaryGap: [0, '100%'],
                 splitLine: {
                     show: false
                 },
-                // labels: {
-                //     formatter: function () {      
-                //         var bytes = this.value;                          
-                //         var sizes = ['bps', 'kbps', 'Mbps', 'Gbps', 'Tbps'];
-                //         if (bytes == 0) return '0 bps';
-                //         var i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)));
-                //         return parseFloat((bytes / Math.pow(1024, i)).toFixed(2)) + ' ' + sizes[i];                    
-                //     },
-                // },   
+                axisLabel: {
+                    formatter: function(value, index) {
+                        return formatter(value)
+                    },
+                },   
+                axisPointer: {
+                    label: {
+                        formatter: function(params) {
+                            return formatter(params.value)
+                        }
+                    }
+                }
             }
         ],
         series: [
@@ -210,9 +203,6 @@ const initOption = () => {
                     focus: 'series'
                 },
                 // areaStyle: {},
-                // data: [
-                //     2.6, 5.9, 9.0, 26.4, 28.7, 70.7, 175.6, 182.2, 48.7
-                // ]
                 data: []
             },
             {
@@ -224,16 +214,24 @@ const initOption = () => {
                     focus: 'series'
                 },
                 // areaStyle: {},
-                // data: [
-                //     3.9, 5.9, 11.1, 18.7, 48.3, 69.2, 231.6, 46.6, 55.4
-                // ]
                 data: []
             }
         ]
     }
 }
 
+// auto run
 initData()
+if (lists.value.length > 0) {
+    lists.value.forEach((ls) => {
+        if (ls) {
+            setInterval(() => {
+                setUpdate(ls.id)
+            }, 8000)
+        }
+    })
+}
+
 const setChartRef = (el, index) => {
     // console.log(index, chartRefs.value)
     chartRefs.value[index] = el
@@ -261,12 +259,6 @@ const disposeCharts = () => {
         if (instance) instance.dispose();
     });
     chartInstances.value = [];
-}
-
-function generateRandomData(count, min, max) {
-    return Array.from({ length: count }, () => 
-        Math.floor(Math.random() * (max - min + 1)) + min
-    );
 }
 
 const updateChart = (label, rx, tx) => {
@@ -300,6 +292,20 @@ const updateChart = (label, rx, tx) => {
         });
     });
 }
+
+const showNetwork = (router, name) => {
+    console.log(router)
+    loading.value = true
+    if (router.length > 0) {
+        networkHeader.value = name
+        tbList.value = router
+        networkDlg.value = true
+        loading.value = false
+    } else {
+        toast.add({ severity: 'error', summary: 'Error', detail: 'Data not found!', life: 3000 });
+        loading.value = false
+    }
+}
 </script>
 
 <template>
@@ -309,7 +315,7 @@ const updateChart = (label, rx, tx) => {
 
     
     <Card class="w-full mb-5">
-        <template #title><i class="pi pi-sitemap"></i> Data Network IP {{ isDarkMode }}</template>
+        <template #title><i class="pi pi-sitemap"></i> Data Network IP</template>
     </Card>
 
     <div class="w-full grid grid-cols-2 justify-between gap-4">
@@ -335,7 +341,7 @@ const updateChart = (label, rx, tx) => {
                         </div>
 
                         <div>
-                            <Button type="button" label="Show IP Network" severity="info" icon="pi pi-eye" raised @click="test" />
+                            <Button type="button" label="Show IP Network" severity="info" icon="pi pi-eye" raised @click="showNetwork(list.data, list.name)" />
                         </div>
                     </div>
                     <div v-if="list" class="w-full">
@@ -357,12 +363,52 @@ const updateChart = (label, rx, tx) => {
         </Card>
     </div>
 
-    <!-- <Panel class="w-full">
-        <div class="echart-container">
-            <h1 class="chart-title">Apache ECharts</h1>
-            <div ref="myCanvas" class="chart"></div>
+    <Dialog v-model:visible="networkDlg" modal maximizable :header="'Detail ' + networkHeader" :style="{width: '70vw'}" :breakpoints="{ '1199px': '75vw', '575px': '90vw' }">
+        <div class="flex w-full mb-4">
+            <DataTable v-model:filters="filters" :value="tbList" paginator :rows="15" :rowsPerPageOptions="[5, 10, 15, 25, 50, 100]" dataKey=".id" filterDisplay="row" :loading="loading" :globalFilterFields="['address', 'interface', 'network']" class="w-full">
+                <template #header>
+                    <div class="flex justify-end">
+                        <IconField>
+                            <InputIcon>
+                                <i class="pi pi-search" />
+                            </InputIcon>
+                            <InputText v-model="filters['global'].value" placeholder="Keyword Search" />
+                        </IconField>
+                    </div>
+                </template>
+                <template #empty> No network found. </template>
+                <template #loading> Loading network data. Please wait. </template>
+
+                <Column field="address" header="Address" style="width: 20%"></Column>
+                <Column field="network" header="Network" style="width: 20%"></Column>
+                <Column field="interface" header="Interface" style="width: 20%"></Column>
+                <Column field="actual-interface" header="Actual" style="width: 20%"></Column>
+                <Column field="invalid" header="Invalid" style="width: 15%">
+                    <template #body="slotProps">
+                        <Badge :value="slotProps.data.invalid" :severity="slotProps.data.invalid === 'false' ? 'danger' : 'success'"></Badge>
+                    </template>
+                </Column>
+                <Column field="" header="" style="width: 5%">
+                    <template #body="slotProps">
+                        <div class="float-right">
+                            <Button icon="pi pi-search" v-tooltip.bottom="'Lihat Detail'" severity="secondary" rounded />
+                        </div>
+                    </template>
+                </Column>
+
+                <template #paginatorcontainer="{ first, last, page, pageCount, prevPageCallback, nextPageCallback, totalRecords }">
+                    <div class="flex items-center gap-4 border border-primary bg-transparent rounded-full w-full py-1 px-2 justify-between">
+                        <Button icon="pi pi-chevron-left" rounded text @click="prevPageCallback" :disabled="page === 0" />
+                        <div class="text-color font-medium">
+                            <span class="hidden sm:block">Showing {{ first }} to {{ last }} of {{ totalRecords }}</span>
+                            <span class="block sm:hidden">Page {{ page + 1 }} of {{ pageCount }}</span>
+                        </div>
+                        <Button icon="pi pi-chevron-right" rounded text @click="nextPageCallback" :disabled="page === pageCount - 1" />
+                    </div>
+                </template>
+            </DataTable>
         </div>
-    </Panel> -->
+    </Dialog>
 </template>
 
 <style scoped>
@@ -372,9 +418,10 @@ const updateChart = (label, rx, tx) => {
     align-items: center;
     padding: 20px;
     background-color: #030712;
+    /* background-color: transparent; */
     border-radius: 10px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    max-width: 900px;
+    max-width: 600px;
     margin: 20px auto;
 }
 
@@ -384,6 +431,6 @@ const updateChart = (label, rx, tx) => {
     min-height: 300px;
     background-color: white;
     border-radius: 8px;
-    padding: 15px;
+    padding: 10px;
 }
 </style>
