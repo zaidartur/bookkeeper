@@ -21,4 +21,6 @@ Homestead.yaml
 Homestead.json
 /.vagrant
 .phpunit.result.cache
+
 /config/services.php
+\config\services.php
