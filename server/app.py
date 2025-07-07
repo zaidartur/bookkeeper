@@ -29,6 +29,11 @@ def index():
 # def index():
 #     return "<h1>Not Allowed</h1>"
 
+@app.route('/sending')
+def send_emit():
+    print('Testing')
+    emit('testing', {'data' : 'This is connected!'})
+
 @socketio.on('start_ping')
 def handle_start_ping(data):
     ip_address = data.get('ip_address')
