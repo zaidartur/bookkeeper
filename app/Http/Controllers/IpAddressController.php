@@ -26,7 +26,7 @@ class IpAddressController extends Controller
         // ];
 
         $data = [
-            'router'   => $this->router->default(),
+            'router'   => $this->router->interface(),
         ];
 
         return Inertia::render('Network', $data);
@@ -35,7 +35,7 @@ class IpAddressController extends Controller
     public function monitoring(Request $request)
     {
         // $request = Request();
-        return $this->router->monitoring($request->id);
+        return $this->router->monitoring($request->id, $request->name);
     }
 
     public function save(Request $request)

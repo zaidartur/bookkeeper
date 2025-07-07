@@ -1,7 +1,11 @@
 <script setup>
-import { ref, defineProps, onMounted, onBeforeUnmount, computed, shallowRef } from 'vue'
-import { Head, useForm } from '@inertiajs/vue3';
+import { ref, defineProps, onMounted, onBeforeUnmount, computed, shallowRef, onUnmounted } from 'vue'
+import { Head } from '@inertiajs/vue3';
+import { FilterMatchMode } from '@primevue/core/api';
+import { useLayout } from '@/Layouts/composables/layout';
 import axios from 'axios';
+import { io } from 'socket.io-client';
+import Toast from 'primevue/toast';
 import Panel from 'primevue/panel';
 import Badge from 'primevue/badge';
 import Tag from 'primevue/tag';
@@ -9,13 +13,14 @@ import IconField from 'primevue/iconfield';
 import InputIcon from 'primevue/inputicon';
 import Popover from 'primevue/popover';
 import * as echarts from 'echarts';
-import { FilterMatchMode } from '@primevue/core/api';
-import { useLayout } from '@/Layouts/composables/layout';
+import { useToast } from 'primevue';
 
 const datas = defineProps({
     routers: Object,
 })
 
+let socket
+const toast = useToast()
 const { layoutConfig } = useLayout()
 const isDarkMode = computed(() => {
     return layoutConfig.darkTheme
@@ -23,9 +28,16 @@ const isDarkMode = computed(() => {
 
 const lists = ref(Array())
 const ethernet = ref(null)
+const ethername = ref(null)
 const chartRefs = shallowRef([])
 const chartInstances = shallowRef([])
 const options = shallowRef([])
+const timerLists = ref([])
+const itemLists = ref([])
+const cpu =ref(0)
+const memory = ref(null)
+const disk = ref(null)
+const uptime = ref(null)
 
 const networkDlg = ref(false)
 const networkHeader = ref(null)
@@ -37,6 +49,10 @@ const filters = ref({
     interface: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
     network: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
 })
+const pingResults = ref([]);
+const statusMessage = ref('');
+const isLoading = ref(false)
+const connectionStatus = ref('Connecting...');
 
 const initData = () => {
     lists.value = []
@@ -51,15 +67,96 @@ const initData = () => {
     }
 }
 
+// socketIO
+const getConnectionStatusClass = computed(() => {
+    if (connectionStatus.value === 'Connected') return 'status-connected';
+    if (connectionStatus.value === 'Disconnected') return 'status-disconnected';
+    if (connectionStatus.value === 'Connecting...') return 'status-connecting';
+    return ''
+})
+const getResultClass = (status) => {
+    if (status === 'success') return 'success';
+    if (status === 'failed') return 'failed';
+    if (status === 'error') return 'error';
+    return ''
+}
+
 onMounted(() => {
     initCharts()
-    lists.value.forEach((ls) => {
+    itemLists.value = []
+    lists.value.forEach((ls, i) => {
         if (ls) {
             console.log('list', ls)
+            i === 0 ? (ethername.value = ls.data[0].default_name) : null
+            i === 0 ? (ethernet.value = ls.data[0].name) : null
             setUpdate(ls.id)
+
+            if (ls.data.length > 0) {
+                ls.data.map((item) => {
+                    itemLists.value.push({
+                        label: item.name,
+                        command: () => {
+                            changeGraph(ls.id, item.name, item.default_name)
+                        },
+                    }) 
+                })
+            }
         }
     })
-    // console.log('lists', lists.value)
+
+    socket = io('http://127.0.0.1:5000')
+      socket.on('connect', () => {
+        console.log('Connected to Flask SocketIO server');
+        toast.add({ severity: 'success', summary: 'Success', detail: 'Connected to Flask SocketIO server', life: 3000 });
+        connectionStatus.value = 'Connected';
+    });
+
+    socket.on('disconnect', () => {
+        console.log('Disconnected from Flask SocketIO server');
+        connectionStatus.value = 'Disconnected';
+        loading.value = false; // Reset loading if disconnected during ping
+    });
+
+    socket.on('connect_error', (error) => {
+        console.error('Socket.IO connection error:', error);
+        connectionStatus.value = 'Connection Error';
+        statusMessage.value = 'Failed to connect to the ping service.';
+        loading.value = false;
+    });
+
+    socket.on('testing', (data) => {
+        toast.add({ severity: 'success', summary: 'Success', detail: data.data, life: 3000 });
+    })
+
+    socket.on('my response', (data) => {
+        console.log('Server message:', data);
+    });
+
+    socket.on('ping_status', (data) => {
+        statusMessage.value = data.message;
+        console.log(data.message)
+        if (data.message.includes('completed')) {
+            loading.value = false;
+        }
+    });
+
+    socket.on('ping_result', (data) => {
+        console.log('Ping result received:', data);
+        pingResults.value.push(data);
+    });
+
+    socket.on('ping_error', (data) => {
+        console.error('Ping error received:', data);
+        pingResults.value.push(data); // Add error to results list as well
+        statusMessage.value = data.message;
+        // Optionally stop loading if a critical error occurs
+    });
+})
+
+onUnmounted(() => {
+    if (socket) {
+        socket.disconnect();
+    }
 })
 
 onBeforeUnmount(() => {
@@ -67,18 +164,42 @@ onBeforeUnmount(() => {
 });
 
 const test = () => {
-    //
+    console.log('nothing')
 }
 
-const setUpdate = (id) => {
+const setUpdate = async(id) => {
     if (id > -1) {
-        // console.log(id)
-        axios.post('/network/graphic', {id: id}).then((response) => {
+        // clear timer
+        clearInterval(timerLists.value[id])
+
+        await axios.post('/network/graphic', {id: id, name: ethername.value}).then((response) => {
             const res = response.data
             if (res) {
                 // console.log(res)
-                ethernet.value = res.name
-                updateInterval(res.time, res.rx, res.tx)
+                if (res) {
+                    // ethernet.value = res.name
+                    updateInterval(res.time, res.rx, res.tx)
+
+                    if (res.resource) {
+                        const rsc = res.resource
+
+                        cpu.value       = rsc.cpu_load
+                        memory.value    = rsc.memory
+                        disk.value      = rsc.hdd
+                        uptime.value    = rsc.uptime
+                    }
+                }
+
+                // make timer again after success
+                timerLists.value[id] = setInterval(() => {
+                    setUpdate(id)
+                }, 8000)
+            }
+        }).catch(function(error) {
+            // console.log('error', error)
+            if (error.name) {
+                // toast.add({ severity: 'warn', summary: error.name, detail: error.message, life: 3000 });
+                console.log(error.message)
             }
         })
     }
@@ -102,7 +223,7 @@ const updateInterval = (label, rx, tx) => {
 
 const colors = ['#5470C6', '#EE6666'];
 const formatter = (bytes) => {
-    const sizes = ['bps', 'Kbps', 'Mbps', 'Gbps', 'Tbps']
+    const sizes = ['bps', 'kbps', 'Mbps', 'Gbps', 'Tbps']
     if (bytes == 0) return '0 bps'
     const i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)))
     return parseFloat((bytes / Math.pow(1024, i)).toFixed(2)) + ' ' + sizes[i]
@@ -223,9 +344,10 @@ const initOption = () => {
 // auto run
 initData()
 if (lists.value.length > 0) {
+    timerLists.value = []
     lists.value.forEach((ls) => {
         if (ls) {
-            setInterval(() => {
+            timerLists.value[ls.id] = setInterval(() => {
                 setUpdate(ls.id)
             }, 8000)
         }
@@ -263,7 +385,6 @@ const disposeCharts = () => {
 
 const updateChart = (label, rx, tx) => {
     const maxPoints = 10
-    const sizes = ['bps', 'kbps', 'Mbps', 'Gbps', 'Tbps']
     options.value.forEach(chart => {
         chart.updates++;
         const option = chart;
@@ -282,12 +403,6 @@ const updateChart = (label, rx, tx) => {
         // Add new data points
         option.series.forEach(series => {
             const bytes = series.name === 'Tx' ? parseInt(tx) : parseInt(rx)
-            let fix = 0
-            if (bytes > 0) {
-                const i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)))
-                // return parseFloat((bytes / Math.pow(1024, i)).toFixed(2)) + ' ' + sizes[i];  
-                fix = parseFloat((bytes / Math.pow(1024, i)).toFixed(2))
-            }
             series.data.push(bytes);
         });
     });
@@ -304,6 +419,55 @@ const showNetwork = (router, name) => {
     } else {
         toast.add({ severity: 'error', summary: 'Error', detail: 'Data not found!', life: 3000 });
         loading.value = false
+    }
+}
+
+const changeGraph = (id, label, name) => {
+    if (parseInt(id) > -1) {
+        console.log('changing to ' + label)
+
+        ethernet.value = label
+        ethername.value = name
+
+        // reset data and label of chart
+        options.value.forEach(chart => {
+            chart.updates = 0;
+            const option = chart;
+
+            if (option.xAxis.data.length > 0) {
+                option.xAxis.data = []
+                option.series.forEach(series => (series.data = []));
+            }
+        });
+    }
+}
+
+const ping = async (ip) => {
+    // if (ip.includes('/')) {
+    //     ip = ip.slice(0, -3)
+    // }
+    // await axios.post('/api/ping', {ip_address: ip}).then((response) => {
+    //     console.log(response)
+    // }).catch(function (err) {
+    //     console.log(err)
+    // })
+
+    if (ip.includes('/')) {
+        ip = ip.slice(0, -3)
+    }
+    console.log('pinging:', ip)
+    if (socket && socket.connected) {
+        pingResults.value = []
+        statusMessage.value = ''
+        socket.emit('start_ping', {
+            ip_address: ip,
+            num_pings: 10,
+            delay_ms: 1000,
+        })
+    } else {
+        statusMessage.value = 'Not connected to the ping service. Please try again later.';
+        // console.error('Socket not connected.');
+        toast.add({ severity: 'warn', summary: 'Warning', detail: statusMessage.value, life: 3000 });
     }
 }
 </script>
@@ -334,18 +498,27 @@ const showNetwork = (router, name) => {
                             <label>
                                 Status is <Tag severity="success" value="ON" rounded></Tag>
                                 <br>
-                                Total IP Address : {{ list.data.length }}
+                                Uptime : {{ uptime }}
                                 <br>
-                                Total assign network : 0
+                                CPU Load : {{ cpu }}%
+                                <br>
+                                Free RAM : {{ memory }}
+                                <br>
+                                Free HDD : {{ disk }}
+                                <br>
+                                Total IP Address : {{ list.address.length }}
                             </label>
                         </div>
 
                         <div>
-                            <Button type="button" label="Show IP Network" severity="info" icon="pi pi-eye" raised @click="showNetwork(list.data, list.name)" />
+                            <Button type="button" label="Show IP Network" severity="info" icon="pi pi-eye" raised @click="showNetwork(list.address, list.name)" />
                         </div>
                     </div>
                     <div v-if="list" class="w-full">
-                        <Divider>Monitoring {{ ethernet }}</Divider>
+                        <Divider>
+                            Monitoring
+                            <SplitButton :label="ethernet" :model="itemLists" @click="test" text></SplitButton>
+                        </Divider>
                         <div class="echart-container" >
                             <div :ref="el => setChartRef(el, l)" class="chart"></div>
                         </div>
@@ -382,16 +555,20 @@ const showNetwork = (router, name) => {
                 <Column field="address" header="Address" style="width: 20%"></Column>
                 <Column field="network" header="Network" style="width: 20%"></Column>
                 <Column field="interface" header="Interface" style="width: 20%"></Column>
-                <Column field="actual-interface" header="Actual" style="width: 20%"></Column>
+                <Column field="dynamic" header="Dynamic" style="width: 20%">
+                    <template #body="slotProps">
+                        <Badge :value="slotProps.data.dynamic" size="large" :severity="slotProps.data.dynamic === 'false' ? 'danger' : 'success'"></Badge>
+                    </template>
+                </Column>
                 <Column field="invalid" header="Invalid" style="width: 15%">
                     <template #body="slotProps">
-                        <Badge :value="slotProps.data.invalid" :severity="slotProps.data.invalid === 'false' ? 'danger' : 'success'"></Badge>
+                        <Badge :value="slotProps.data.invalid" size="large" :severity="slotProps.data.invalid === 'false' ? 'danger' : 'success'"></Badge>
                     </template>
                 </Column>
                 <Column field="" header="" style="width: 5%">
                     <template #body="slotProps">
                         <div class="float-right">
-                            <Button icon="pi pi-search" v-tooltip.bottom="'Lihat Detail'" severity="secondary" rounded />
+                            <Button icon="pi pi-search" v-tooltip.bottom="'Lihat Detail'" severity="secondary" @click="ping(slotProps.data.address)" rounded />
                         </div>
                     </template>
                 </Column>

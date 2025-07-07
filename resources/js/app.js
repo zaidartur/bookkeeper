@@ -36,6 +36,7 @@ import Textarea from 'primevue/textarea';
 import Tag from 'primevue/tag';
 import Divider from 'primevue/divider';
 
+import SplitButton from 'primevue/splitbutton';
 import DataTable from 'primevue/datatable';
 import Column from 'primevue/column';
 import ColumnGroup from 'primevue/columngroup';
@@ -98,6 +99,7 @@ createInertiaApp({
             .component('Row', Row)
             .component('Tag', Tag)
             .component('Divider', Divider)
+            .component('SplitButton', SplitButton)
 
             .component('Head', Head)
             .component('Link', Link)
