@@ -5,6 +5,7 @@ import { FilterMatchMode } from '@primevue/core/api';
 import { useLayout } from '@/Layouts/composables/layout';
 import axios from 'axios';
 import { io } from 'socket.io-client';
+import { useToast } from 'primevue';
 import Toast from 'primevue/toast';
 import Panel from 'primevue/panel';
 import Badge from 'primevue/badge';
@@ -13,7 +14,8 @@ import IconField from 'primevue/iconfield';
 import InputIcon from 'primevue/inputicon';
 import Popover from 'primevue/popover';
 import * as echarts from 'echarts';
-import { useToast } from 'primevue';
+import Terminal from 'primevue/terminal';
+import TerminalService from 'primevue/terminalservice'
 
 const datas = defineProps({
     routers: Object,
@@ -51,8 +53,13 @@ const filters = ref({
 })
 const pingResults = ref([]);
 const statusMessage = ref('');
+const pingAddress = ref(null)
 const isLoading = ref(false)
 const connectionStatus = ref('Connecting...');
+const sessionId = ref(null)
+
+const terminalDlg = ref(false)
+const terminalHeader = ref(null)
 
 const initData = () => {
     lists.value = []
@@ -105,50 +112,53 @@ onMounted(() => {
     })
 
     socket = io('http://127.0.0.1:5000')
-      socket.on('connect', () => {
-        console.log('Connected to Flask SocketIO server');
-        toast.add({ severity: 'success', summary: 'Success', detail: 'Connected to Flask SocketIO server', life: 3000 });
+
+    socket.on('connect', () => {
+        console.log('Connected to SocketIO server');
+        toast.add({ severity: 'success', summary: 'Success', detail: 'Connected to SocketIO server', life: 3000 });
         connectionStatus.value = 'Connected';
     });
 
     socket.on('disconnect', () => {
         console.log('Disconnected from Flask SocketIO server');
         connectionStatus.value = 'Disconnected';
-        loading.value = false; // Reset loading if disconnected during ping
+        isLoading.value = false; // Reset loading if disconnected during ping
+    });
+
+    socket.on('sessionId', (id) => {
+        sessionId.value = id
+        console.log('sid', sessionId.value)
     });
 
     socket.on('connect_error', (error) => {
         console.error('Socket.IO connection error:', error);
         connectionStatus.value = 'Connection Error';
         statusMessage.value = 'Failed to connect to the ping service.';
-        loading.value = false;
-    });
-
-    socket.on('testing', (data) => {
-        toast.add({ severity: 'success', summary: 'Success', detail: data.data, life: 3000 });
+        isLoading.value = false;
     })
 
-    socket.on('my response', (data) => {
-        console.log('Server message:', data);
-    });
-
-    socket.on('ping_status', (data) => {
-        statusMessage.value = data.message;
-        console.log(data.message)
-        if (data.message.includes('completed')) {
-            loading.value = false;
+    socket.on('ping_result', (data) => {
+        if (data.session === sessionId.value) {
+            console.log('Ping result received:', data)
+            statusMessage.value += (data.result + '\n')
+            isLoading.value = true
+            // pingResults.value.push(data);
         }
     });
 
-    socket.on('ping_result', (data) => {
-        console.log('Ping result received:', data);
-        pingResults.value.push(data);
+    socket.on('ping_stopped', (data) => {
+        if (data.session === sessionId.value) {
+            console.log('Ping has stopped:', data)
+            isLoading.value = false
+            // pingResults.value.push(data);
+        }
     });
 
     socket.on('ping_error', (data) => {
         console.error('Ping error received:', data);
         pingResults.value.push(data); // Add error to results list as well
         statusMessage.value = data.message;
+        isLoading.value = false
         // Optionally stop loading if a critical error occurs
     });
 })
@@ -198,7 +208,7 @@ const setUpdate = async(id) => {
         }).catch(function(error) {
             // console.log('error', error)
             if (error.name) {
-                // toast.add({ severity: 'warn', summary: error.name, detail: error.message, life: 3000 });
+                toast.add({ severity: 'warn', summary: error.name, detail: error.message, life: 3000 });
                 console.log(error.message)
             }
         })
@@ -443,31 +453,48 @@ const changeGraph = (id, label, name) => {
 }
 
 const ping = async (ip) => {
-    // if (ip.includes('/')) {
-    //     ip = ip.slice(0, -3)
-    // }
-    // await axios.post('/api/ping', {ip_address: ip}).then((response) => {
-    //     console.log(response)
-    // }).catch(function (err) {
-    //     console.log(err)
-    // })
-
     if (ip.includes('/')) {
         ip = ip.slice(0, -3)
     }
     console.log('pinging:', ip)
-    if (socket && socket.connected) {
+    if (socket && socket.connected && sessionId.value) {
         pingResults.value = []
         statusMessage.value = ''
         socket.emit('start_ping', {
-            ip_address: ip,
-            num_pings: 10,
-            delay_ms: 1000,
+            target: ip,
+            mode: 'continuous',
+            session: sessionId.value
         })
+
+        pingAddress.value = ip
+        terminalHeader.value = 'Ping ' + ip
+        // statusMessage.value = `Pinging ${ip} with 1 bytes of data: \n`
+        terminalDlg.value = true
     } else {
         statusMessage.value = 'Not connected to the ping service. Please try again later.';
         // console.error('Socket not connected.');
         toast.add({ severity: 'warn', summary: 'Warning', detail: statusMessage.value, life: 3000 });
+    }
+}
+
+const stop = (ip) => {
+    if (ip.includes('/')) {
+        ip = ip.slice(0, -3)
+    }
+    if (socket && socket.connected && sessionId.value) {
+        pingResults.value = []
+        statusMessage.value = ''
+        socket.emit('stop_ping', {
+            session: sessionId.value
+        })
+    }
+
+    terminalDlg.value = false
+}
+
+const is_closed = () => {
+    if (pingAddress.value) {
+        stop(pingAddress.value)
     }
 }
 </script>
@@ -555,20 +582,21 @@ const ping = async (ip) => {
                 <Column field="address" header="Address" style="width: 20%"></Column>
                 <Column field="network" header="Network" style="width: 20%"></Column>
                 <Column field="interface" header="Interface" style="width: 20%"></Column>
-                <Column field="dynamic" header="Dynamic" style="width: 20%">
+                <Column field="dynamic" header="Dynamic" style="width: 15%">
                     <template #body="slotProps">
                         <Badge :value="slotProps.data.dynamic" size="large" :severity="slotProps.data.dynamic === 'false' ? 'danger' : 'success'"></Badge>
                     </template>
                 </Column>
-                <Column field="invalid" header="Invalid" style="width: 15%">
+                <Column field="invalid" header="Invalid" style="width: 10%">
                     <template #body="slotProps">
                         <Badge :value="slotProps.data.invalid" size="large" :severity="slotProps.data.invalid === 'false' ? 'danger' : 'success'"></Badge>
                     </template>
                 </Column>
-                <Column field="" header="" style="width: 5%">
+                <Column field="" header="" style="width: 15%">
                     <template #body="slotProps">
                         <div class="float-right">
-                            <Button icon="pi pi-search" v-tooltip.bottom="'Lihat Detail'" severity="secondary" @click="ping(slotProps.data.address)" rounded />
+                            <Button icon="pi pi-arrow-right-arrow-left" v-tooltip.bottom="'Ping ' + slotProps.data.address" severity="secondary" @click="ping(slotProps.data.address)" rounded v-if="!isLoading" />
+                            <Button icon="pi pi-stop-circle" v-tooltip.bottom="'Stop Ping'" severity="danger" @click="stop(slotProps.data.address)" rounded v-if="isLoading" />
                         </div>
                     </template>
                 </Column>
@@ -584,6 +612,23 @@ const ping = async (ip) => {
                     </div>
                 </template>
             </DataTable>
+        </div>
+    </Dialog>
+
+    <Dialog v-model:visible="terminalDlg" modal :header="terminalHeader" :style="{width: '50vw'}" :breakpoints="{ '1199px': '75vw', '575px': '90vw' }" @hide="is_closed()">
+        <div class="grid-col w-full mb-4">
+            <div>
+                <Terminal
+                    :welcomeMessage="statusMessage"
+                    aria-label="Data Center Terminal Service"
+                    class="w-full mb-5"
+                    style="white-space: pre-line;"
+                />
+            </div>
+
+            <div>
+                <Button icon="pi pi-stop-circle" severity="secondary" label="STOP" class="float-right" @click="stop(pingAddress)" rounded />
+            </div>
         </div>
     </Dialog>
 </template>

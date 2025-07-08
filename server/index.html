@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-User Ping Dashboard</title>
+    <style>
+        .ping-result {
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            overflow-wrap: break-word;
+        }
+        #pingResults {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .blink {
+            animation: blinker 1s linear infinite;
+        }
+        @keyframes blinker {
+            50% {
+                opacity: 0.5;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <div class="max-w-6xl mx-auto">
+            <header class="mb-8">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h1 class="text-3xl font-bold text-gray-800">Network Ping Monitor</h1>
+                        <p class="text-gray-600">Monitor network connectivity in real-time</p>
+                    </div>
+                    <div>
+                        <img src="https://placehold.co/100x100" alt="Network monitoring dashboard icon showing two connected computers with ping status" class="w-16 h-16 rounded-full" />
+                    </div>
+                </div>
+            </header>
+
+            <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+                <div class="flex flex-col md:flex-row gap-6">
+                    <div class="md:w-1/3">
+                        <h2 class="text-xl font-semibold mb-4 text-gray-800">Ping Control</h2>
+                        <form id="pingForm" class="space-y-4">
+                            <div>
+                                <label for="ipAddress" class="block text-sm font-medium text-gray-700 mb-1">Target IP/Hostname</label>
+                                <input type="text" id="ipAddress" required 
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    placeholder="e.g. 8.8.8.8 or google.com">
+                            </div>
+                            
+                            <div>
+                                <label for="pingType" class="block text-sm font-medium text-gray-700 mb-1">Ping Mode</label>
+                                <select id="pingType" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <option value="single">Single Ping</option>
+                                    <option value="continuous">Continuous Ping</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <button type="button" id="startPingBtn" 
+                                    class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md transition duration-150 ease-in-out">
+                                    Start Ping
+                                </button>
+                                <button type="button" id="stopPingBtn" disabled
+                                    class="w-full mt-2 bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-md transition duration-150 ease-in-out hidden">
+                                    Stop Ping
+                                </button>
+                            </div>
+                        </form>
+
+                        <div class="mt-6">
+                            <h3 class="text-lg font-medium text-gray-800 mb-2">Active Sessions</h3>
+                            <div id="activeSessions" class="space-y-2">
+                                <!-- Will be populated with JavaScript -->
+                                <p class="text-gray-500 text-sm">No active ping sessions</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="md:w-2/3">
+                        <div class="flex justify-between items-center mb-2">
+                            <h2 class="text-xl font-semibold text-gray-800">Ping Results</h2>
+                            <div>
+                                <button id="clearResultsBtn" class="text-sm text-gray-500 hover:text-gray-700">Clear Results</button>
+                            </div>
+                        </div>
+                        
+                        <div id="pingResults" class="bg-gray-900 text-green-400 p-4 rounded-md min-h-64">
+                            <div class="ping-result">
+                                <p>Ping results will appear here...</p>
+                                <p class="text-gray-500">Your session ID: <span id="sessionId" class="text-blue-300">Connecting...</span></p>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 text-xs text-gray-500 flex justify-between">
+                            <div id="statusIndicator" class="flex items-center">
+                                <span class="w-2 h-2 rounded-full bg-gray-400 mr-1"></span>
+                                <span id="connectionStatus">Connecting to server...</span>
+                            </div>
+                            <div>
+                                <span id="lastUpdate">-</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-semibold mb-4 text-gray-800">How It Works</h2>
+                <div class="grid md:grid-cols-3 gap-6">
+                    <div class="p-4 border border-gray-200 rounded-lg">
+                        <div class="flex items-center mb-2">
+                            <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                                </svg>
+                            </div>
+                            <h3 class="font-medium">Multi-User</h3>
+                        </div>
+                        <p class="text-sm text-gray-600">Each user gets their own ping session with unique ID. Ping different targets simultaneously.</p>
+                    </div>
+                    <div class="p-4 border border-gray-200 rounded-lg">
+                        <div class="flex items-center mb-2">
+                            <div class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-3">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
+                                </svg>
+                            </div>
+                            <h3 class="font-medium">Real-time Updates</h3>
+                        </div>
+                        <p class="text-sm text-gray-600">Results stream directly to your browser as they happen, with timestamps for each response.</p>
+                    </div>
+                    <div class="p-4 border border-gray-200 rounded-lg">
+                        <div class="flex items-center mb-2">
+                            <div class="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center mr-3">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
+                                </svg>
+                            </div>
+                            <h3 class="font-medium">Two Modes</h3>
+                        </div>
+                        <p class="text-sm text-gray-600">Choose between single ping (one test only) or continuous mode that runs until you stop it.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+        // Socket.IO connection
+        const socket = io('http://127.0.0.1:5000');
+        let currentSessionId = null;
+        let pingInterval = null;
+
+        // UI Elements
+        const pingForm = document.getElementById('pingForm');
+        const ipAddress = document.getElementById('ipAddress');
+        const pingType = document.getElementById('pingType');
+        const startPingBtn = document.getElementById('startPingBtn');
+        const stopPingBtn = document.getElementById('stopPingBtn');
+        const pingResults = document.getElementById('pingResults');
+        const clearResultsBtn = document.getElementById('clearResultsBtn');
+        const sessionId = document.getElementById('sessionId');
+        const statusIndicator = document.getElementById('statusIndicator');
+        const connectionStatus = document.getElementById('connectionStatus');
+        const activeSessions = document.getElementById('activeSessions');
+        const lastUpdate = document.getElementById('lastUpdate');
+
+        // Connection status handling
+        socket.on('connect', () => {
+            connectionStatus.textContent = 'Connected to server';
+            statusIndicator.children[0].className = 'w-2 h-2 rounded-full bg-green-500 mr-1 blink';
+        });
+
+        socket.on('disconnect', () => {
+            connectionStatus.textContent = 'Disconnected from server';
+            statusIndicator.children[0].className = 'w-2 h-2 rounded-full bg-red-500 mr-1';
+        });
+
+        socket.on('connect_error', () => {
+            connectionStatus.textContent = 'Connection error - trying to reconnect...';
+            statusIndicator.children[0].className = 'w-2 h-2 rounded-full bg-yellow-500 mr-1';
+        });
+
+        // Receive session ID from server
+        socket.on('sessionId', (id) => {
+            currentSessionId = id;
+            sessionId.textContent = id;
+        });
+
+        // Receive ping results from server
+        socket.on('ping_result', (data) => {
+            if (data.session === currentSessionId) {
+                const pingDiv = document.createElement('div');
+                pingDiv.className = 'ping-result mb-2 border-l-4 border-blue-500 pl-2';
+                
+                const timestamp = new Date(data.timestamp).toLocaleTimeString();
+                let colorClass = 'text-gray-300';
+                
+                if (data.result.includes('timeout') || data.result.includes('100% loss') || 
+                    data.result.includes('unreachable') || data.result.includes('failed')) {
+                    colorClass = 'text-red-400';
+                }
+                
+                pingDiv.innerHTML = `
+                    <span class="text-xs text-gray-500">[${timestamp}]</span>
+                    <span class="${colorClass}">${data.result}</span>
+                `;
+                
+                pingResults.querySelector('.ping-result').prepend(pingDiv);
+                lastUpdate.textContent = `Last update: ${new Date().toLocaleTimeString()}`;
+                pingResults.scrollTop = 0;
+            }
+        });
+
+        // Receive active sessions update
+        socket.on('active_sessions', (sessions) => {
+            if (sessions && sessions.length > 0) {
+                activeSessions.innerHTML = sessions
+                    .map(session => `
+                        <div class="flex items-center justify-between p-2 bg-gray-50 rounded">
+                            <div>
+                                <span class="font-medium text-gray-700">${session.ip}</span>
+                                <span class="text-xs text-gray-500 ml-2">(${session.mode})</span>
+                            </div>
+                            <div class="text-xs flex items-center">
+                                <span class="w-2 h-2 rounded-full ${session.session === currentSessionId ? 'bg-green-500' : 'bg-blue-500'} mr-1"></span>
+                                ${session.status}
+                            </div>
+                        </div>
+                    `)
+                    .join('');
+            } else {
+                activeSessions.innerHTML = '<p class="text-gray-500 text-sm">No active ping sessions</p>';
+            }
+        });
+
+        // Handle ping form submission
+        startPingBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            
+            if (!ipAddress.value.trim()) {
+                alert('Please enter an IP address or hostname');
+                return;
+            }
+            
+            const target = ipAddress.value.trim();
+            const mode = pingType.value;
+            
+            socket.emit('start_ping', {
+                target: target,
+                mode: mode,
+                session: currentSessionId
+            });
+            
+            startPingBtn.disabled = true;
+            ipAddress.disabled = true;
+            pingType.disabled = true;
+            
+            if (mode === 'continuous') {
+                stopPingBtn.classList.remove('hidden');
+                stopPingBtn.disabled = false;
+            } else {
+                setTimeout(() => {
+                    startPingBtn.disabled = false;
+                    ipAddress.disabled = false;
+                    pingType.disabled = false;
+                }, 1500);
+            }
+        });
+
+        // Handle stop ping button
+        stopPingBtn.addEventListener('click', () => {
+            socket.emit('stop_ping', { session: currentSessionId });
+            stopPingBtn.disabled = true;
+        });
+
+        // Handle clear results button
+        clearResultsBtn.addEventListener('click', () => {
+            const resultsContainer = pingResults.querySelector('.ping-result');
+            while (resultsContainer.children.length > 2) {
+                resultsContainer.removeChild(resultsContainer.firstChild);
+            }
+        });
+
+        // Handle termination of continuous ping
+        socket.on('ping_stopped', (data) => {
+            if (data.session === currentSessionId) {
+                startPingBtn.disabled = false;
+                ipAddress.disabled = false;
+                pingType.disabled = false;
+                stopPingBtn.classList.add('hidden');
+                stopPingBtn.disabled = true;
+            }
+        });
+
+        // Initialize with timestamp
+        lastUpdate.textContent = `Page loaded: ${new Date().toLocaleTimeString()}`;
+    </script>
+</body>
+</html>
