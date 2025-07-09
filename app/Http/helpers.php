@@ -174,7 +174,7 @@ if (! function_exists('format_date')) {
             $daysText = '';
         }
 
-        Log::info('date', [$dtm, $matches]);
+        // Log::info('date', [$dtm, $matches]);
         
         $timeText = sprintf('%02d:%02d:%02d', $matches['hours'], $matches['minutes'], $matches['seconds']);
         // Combine the results

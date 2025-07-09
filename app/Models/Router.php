@@ -148,7 +148,7 @@ class Router extends Model
                     'time'      => date('H:i:s'),
                     'resource'  => [
                         // 'uptime'    => format_date($system[0]['uptime']),
-                        'uptime'    => ($system[0]['uptime']),
+                        'uptime'    => $system[0]['uptime'],
                         'cpu_load'  => $system[0]['cpu-load'],
                         'memory'    => formatBytes($system[0]['free-memory']),
                         'hdd'       => formatBytes($system[0]['free-hdd-space']),
