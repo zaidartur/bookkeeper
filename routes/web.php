@@ -46,12 +46,13 @@ Route::prefix('/')->middleware('auth')->group(function() {
 
     Route::prefix('/network')->group(function() {
         Route::get('/', [IpAddressController::class, 'view'])->name('ip');
-        Route::post('/graphic', [IpAddressController::class, 'monitoring'])->name('ip.monitoring');
+        Route::get('/testing', [IpAddressController::class, 'testing'])->name('ip.test');
 
         Route::post('/save', [IpAddressController::class, 'save'])->name('ip.save');
         Route::post('/update', [IpAddressController::class, 'update'])->name('ip.update');
         Route::post('/confirm', [IpAddressController::class, 'confirm'])->name('ip.confirm');
         Route::post('/delete', [IpAddressController::class, 'delete'])->name('ip.delete');
+        Route::post('/graphic', [IpAddressController::class, 'monitoring'])->name('ip.monitoring');
     });
 
     Route::prefix('/report')->group(function() {

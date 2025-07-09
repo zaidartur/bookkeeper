@@ -52,4 +52,26 @@ class IpAddressController extends Controller
     {
         //
     }
+
+    public function testing()
+    {
+        $ip = '10.20.133.137';
+        $command = (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') ? "ping -n 4 $ip" : "ping -c 4 $ip";
+
+        exec($command, $output, $result);
+        // Prepare the response
+        if ($result === 0) {
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Ping successful',
+                'output' => implode("\n", $output),
+            ]);
+        } else {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Ping failed',
+                'output' => implode("\n", $output),
+            ]);
+        }
+    }
 }
