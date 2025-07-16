@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\BukuTamu;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Redirect;
 use Inertia\Inertia;
 use Ramsey\Uuid\Uuid;
@@ -70,5 +71,13 @@ class DashboardController extends Controller
         $res = ['status' => $status, 'msg' => $msg];
         // return Redirect::route('guestbook')->with('message', $res);
         return Redirect::back()->with('message', $res);
+    }
+
+    public function import_guest(Request $request)
+    {
+        $request->validate(['file' => 'required']);
+
+        $file = base64_decode($request->file);
+        File::move(public_path() . '/uploads', $file);
     }
 }

@@ -59,6 +59,7 @@ Route::prefix('/')->middleware('auth')->group(function() {
         Route::get('/trouble', [TroubleController::class, 'report'])->name('report.trouble');
         Route::get('/maintenance', [MaintenanceController::class, 'report'])->name('report.maintenance');
         Route::get('/guest', [DashboardController::class, 'report_guest'])->name('report.guest');
+        Route::post('/guest/import', [DashboardController::class, 'import_guest'])->name('report.guest.import');
     });
 });
 
