@@ -4,6 +4,7 @@ import { Head, useForm } from '@inertiajs/vue3';
 import Toast from 'primevue/toast';
 import { useToast } from 'primevue/usetoast';
 import moment from 'moment';
+import id from 'moment/dist/locale/id';
 import { FilterMatchMode } from '@primevue/core/api';
 import MultiSelect from 'primevue/multiselect';
 import IconField from 'primevue/iconfield';

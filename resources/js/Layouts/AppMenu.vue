@@ -11,17 +11,17 @@ const model = ref([
     {
         label: 'Input',
         items: [
-            { label: 'Maintenance/Perawatan', icon: 'pi pi-fw pi-id-card', to: '/maintenance' },
-            { label: 'Troubleshoot', icon: 'pi pi-fw pi-id-card', to: '/trouble' },
-            { label: 'Network IP', icon: 'pi pi-fw pi-check-square', to: '/network' },
+            { label: 'Maintenance/Perawatan', icon: 'pi pi-fw pi-sync', to: '/maintenance' },
+            { label: 'Troubleshoot', icon: 'pi pi-fw pi-wrench', to: '/trouble' },
+            { label: 'Network IP', icon: 'pi pi-fw pi-sitemap', to: '/network' },
         ]
     },
     {
         label: 'Reports',
         items: [
-            { label: 'Laporan Masalah', icon: 'pi pi-fw pi-id-card', to: '/report/trouble' },
-            { label: 'Laporan Maintenance', icon: 'pi pi-fw pi-id-card', to: '/report/maintenance' },
-            { label: 'Laporan Buku Tamu', icon: 'pi pi-fw pi-check-square', to: '/report/guest' },
+            { label: 'Maintenance', icon: 'pi pi-fw pi-book', to: '/report/maintenance' },
+            { label: 'Masalah/Troubleshoot', icon: 'pi pi-fw pi-book', to: '/report/trouble' },
+            { label: 'Buku Tamu', icon: 'pi pi-fw pi-book', to: '/report/guest' },
         ]
     },
     {
@@ -31,12 +31,12 @@ const model = ref([
         items: [
             {
                 label: 'Data Admin',
-                icon: 'pi pi-fw pi-pencil',
+                icon: 'pi pi-fw pi-verified',
                 to: '/pages/crud'
             },
             {
                 label: 'Data Petugas',
-                icon: 'pi pi-fw pi-user',
+                icon: 'pi pi-fw pi-users',
                 to: '/pages/crud'
             },
             {
@@ -46,7 +46,7 @@ const model = ref([
             },
             {
                 label: 'Logout',
-                icon: 'pi pi-fw pi-circle-off',
+                icon: 'pi pi-fw pi-sign-out',
                 to: '/pages/empty'
             }
         ]
