@@ -25,7 +25,7 @@ return new class extends Migration
             $table->string('petugas', '50');
             $table->mediumText('foto_awal')->nullable();
             $table->mediumText('foto_akhir')->nullable();
-            $table->string('status', '50');
+            $table->string('status', '50'); //progress & finished
             $table->string('created_by', '64');
             $table->string('confirmed_by', '64')->nullable();
             $table->timestamps();

@@ -2,26 +2,44 @@
 
 namespace App\Http\Controllers;
 
+use App\Imports\ImportTamu;
 use App\Models\BukuTamu;
+use App\Models\Trouble;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redirect;
+use Illuminate\Support\Facades\Session;
 use Inertia\Inertia;
+use Maatwebsite\Excel\Facades\Excel;
 use Ramsey\Uuid\Uuid;
 
 class DashboardController extends Controller
 {
     public function index()
     {
-        return Inertia::render('Dashboard');
+        $data = [
+            'troubles'  => [
+                    'lokal' => Trouble::where('kategori', 'lokal')->where('status', 'progress')->count(),
+                    'intra' => Trouble::where('kategori', 'opd')->where('status', 'progress')->count(),
+                    'metro' => Trouble::where('kategori', 'metro')->where('status', 'progress')->count(),
+                    'internet' => Trouble::where('kategori', 'internet')->where('status', 'progress')->count(),
+                ],
+            'guest'     => [
+                    'total' => BukuTamu::count(),
+                    'months'=> BukuTamu::whereMonth('tanggal', date('m'))->count(),
+                    'today' => BukuTamu::where('tanggal', date('Y-m-d'))->count(),
+            ],
+        ];
+        return Inertia::render('Dashboard', $data);
     }
 
     public function guestbook()
     {
         $data = [
             'total' => BukuTamu::count(),
-            'today' => BukuTamu::whereDate('created_at', date('Y-m-d'))->count(),
+            'today' => BukuTamu::whereDate('created_at', date("Y-m-d"))->count(),
         ];
         return Inertia::render('Guestbook', $data);
     }
@@ -79,5 +97,28 @@ class DashboardController extends Controller
 
         $file = base64_decode($request->file);
         File::move(public_path() . '/uploads', $file);
+    }
+
+    public function view_import()
+    {
+        return view('tamu');
+    }
+
+    public function save_import(Request $request)
+    {
+        $request->validate(['file_import' => 'required']);
+
+        $file   = $request->file('file_import');
+        $ext    = $file->getClientOriginalExtension();
+        if ($ext == 'xlsx') {
+            $import = new ImportTamu;
+            Excel::import($import, $file->store('temp'));
+            $res = ['res' => 'success', 'success' => strval($import->success), 'incomplete' => strval($import->incomplete), 'duplicate' => strval($import->duplicate), 'files' => $import->object, 'total' => $import->total];
+            // Log::debug('res', $res);
+        } else {
+            $res = ['res' => 'failed'];
+        }
+
+        return redirect()->back()->with($res);
     }
 }

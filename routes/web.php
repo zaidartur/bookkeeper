@@ -59,8 +59,11 @@ Route::prefix('/')->middleware('auth')->group(function() {
         Route::get('/trouble', [TroubleController::class, 'report'])->name('report.trouble');
         Route::get('/maintenance', [MaintenanceController::class, 'report'])->name('report.maintenance');
         Route::get('/guest', [DashboardController::class, 'report_guest'])->name('report.guest');
-        Route::post('/guest/import', [DashboardController::class, 'import_guest'])->name('report.guest.import');
+        // Route::post('/guest/import', [DashboardController::class, 'import_guest'])->name('report.guest.import');
     });
+
+    Route::get('/bukutamu', [DashboardController::class, 'view_import'])->name('import.guest');
+    Route::post('/bukutamu', [DashboardController::class, 'save_import'])->name('import.save');
 });
 
 Route::get('/buku-tamu', [DashboardController::class, 'guestbook'])->name('guestbook');
