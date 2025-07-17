@@ -21,10 +21,10 @@ class DashboardController extends Controller
     {
         $data = [
             'troubles'  => [
-                    'lokal' => Trouble::where('kategori', 'lokal')->where('status', 'progress')->count(),
-                    'intra' => Trouble::where('kategori', 'opd')->where('status', 'progress')->count(),
-                    'metro' => Trouble::where('kategori', 'metro')->where('status', 'progress')->count(),
-                    'internet' => Trouble::where('kategori', 'internet')->where('status', 'progress')->count(),
+                    'lokal' => Trouble::where('kategori', 'lokal')->where('status', 'progress')->get(),
+                    'intra' => Trouble::where('kategori', 'opd')->where('status', 'progress')->get(),
+                    'metro' => Trouble::where('kategori', 'metro')->where('status', 'progress')->get(),
+                    'internet' => Trouble::where('kategori', 'internet')->where('status', 'progress')->get(),
                 ],
             'guest'     => [
                     'total' => BukuTamu::count(),

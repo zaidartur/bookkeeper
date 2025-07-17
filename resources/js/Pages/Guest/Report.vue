@@ -206,7 +206,7 @@ onMounted(() => {
     <Head title="Laporan Buku Tamu" />
 
     <Card class="w-full">
-        <template #title><i class="pi pi-address-book"></i> Guest Book Report</template>
+        <template #title><i class="pi pi-address-book"></i> Laporan Buku Tamu</template>
         <template #content>
             <div class="mt-5">
                 <DataTable v-model:filters="filters" :value="guestList" paginator showGridlines :rows="15" :rowsPerPageOptions="[5, 10, 15, 20, 50]" tableStyle="min-width: 50rem" filterDisplay="menu" dataKey="id" :loading="loading" :globalFilterFields="['tanggal', 'nama', 'instansi', 'keperluan']">
@@ -219,7 +219,7 @@ onMounted(() => {
                                     selectionMode="range"
                                     :manualInput="false" 
                                     dateFormat="dd/mm/yy"
-                                    placeholder="Start Date - End Date"
+                                    placeholder="Filter Tanggal"
                                     :maxDate="now"
                                     showButtonBar 
                                     @value-change="filterDate($event)"
@@ -232,7 +232,7 @@ onMounted(() => {
                                 <InputIcon>
                                     <i class="pi pi-search" />
                                 </InputIcon>
-                                <InputText v-model="filters['global'].value" placeholder="Pencarian Umum" />
+                                <InputText v-model="filters['global'].value" placeholder="Pencarian" />
                             </IconField>
                         </div>
                     </template>
@@ -329,31 +329,31 @@ onMounted(() => {
             <div class="card flex flex-wrap gap-4 w-45">
                 <div class="flex-auto">
                     <label for="" class="font-bold block"> Tanggal Kedatangan </label>
-                    <InputText v-model="form.tanggal" placeholder="Tanggal Kedatangan" class="w-full" disabled />
+                    <InputText v-model="form.tanggal" placeholder="Tanggal Kedatangan" class="w-full" readonly />
                 </div>
                 <div class="flex-auto">
                     <label for="jam_mulai" class="font-bold block"> Jam Mulai </label>
-                    <InputText v-model="form.jam_mulai" placeholder="Jam Mulai" class="w-full" disabled />
+                    <InputText v-model="form.jam_mulai" placeholder="Jam Mulai" class="w-full" readonly />
                 </div>
                 <div class="flex-auto">
                     <label for="jam_selesai" class="font-bold block"> Jam Selesai </label>
-                    <InputText v-model="form.jam_selesai" placeholder="Jam Selesai" class="w-full" disabled />
+                    <InputText v-model="form.jam_selesai" placeholder="Jam Selesai" class="w-full" readonly />
                 </div>
             </div>
             <div class="card flex flex-wrap gap-4 -mt-20">
                 <div class="flex-auto">
                     <label for="nama" class="font-bold block"> Nama Tamu </label>
-                    <InputText v-model="form.nama" placeholder="Nama Tamu" class="w-full" disabled />
+                    <InputText v-model="form.nama" placeholder="Nama Tamu" class="w-full" readonly />
                 </div>
                 <div class="flex-auto">
                     <label for="instansi" class="font-bold block"> Instansi </label>
-                    <InputText v-model="form.instansi" placeholder="Instansi" class="w-full" disabled />
+                    <InputText v-model="form.instansi" placeholder="Instansi" class="w-full" readonly />
                 </div>
             </div>
             <div class="card flex flex-wrap gap-4 -mt-20">
                 <div class="flex-auto">
                     <label for="" class="font-bold block"> Keperluan </label>
-                    <Textarea v-model="form.keperluan" rows="5" style="resize: none;" class="w-full" disabled />
+                    <Textarea v-model="form.keperluan" rows="5" style="resize: none;" class="w-full" readonly />
                 </div>
             </div>
             <div class="card flex flex-wrap gap-4 -mt-10">

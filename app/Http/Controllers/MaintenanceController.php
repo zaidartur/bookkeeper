@@ -18,7 +18,9 @@ class MaintenanceController extends Controller
 
     public function view()
     {
-        $data = [];
+        $data = [
+            // 'lists' => Maintenance::orderBy('tanggal_mulai', 'desc')->get(),
+        ];
 
         return Inertia::render('Maintenance', $data);
     }
@@ -26,7 +28,7 @@ class MaintenanceController extends Controller
     public function report()
     {
         $data = [
-            'lists' => Maintenance::orderBy('created_at', 'desc')->get(),
+            'lists' => Maintenance::orderBy('tanggal_mulai', 'desc')->get(),
         ];
         return Inertia::render('ReportMaintenance', $data);
     }
@@ -46,7 +48,7 @@ class MaintenanceController extends Controller
         $data = [
             'uuid'          => $uuid,
             'tanggal_mulai' => date_format(date_create($request->tanggal), 'Y-m-d'),
-            'jam_mulai'     => date_format(date_create($request->tanggal), 'H:i'),
+            'jam_mulai'     => date_format(date_create($request->jam), 'H:i'),
             'judul'         => $request->judul,
             'deskripsi'     => $request->deskripsi,
             'lokasi'        => $request->lokasi,

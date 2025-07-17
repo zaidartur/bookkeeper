@@ -39,7 +39,7 @@ const _detail = (val) => {
 
 <template>
     <div class="col-span-12 -mb-5">
-        <div class="font-semibold text-xl"><i class="pi pi-address-book"></i> Guest Report</div>
+        <div class="font-semibold text-xl"><i class="pi pi-address-book"></i> Data Tamu</div>
     </div>
     <div class="col-span-12 lg:col-span-6 xl:col-span-3">
         <div class="card mb-0">
@@ -47,15 +47,15 @@ const _detail = (val) => {
                 <div>
                     <span class="block text-muted-color font-medium mb-4">Total Semua Tamu</span>
                     <div class="text-surface-900 dark:text-surface-0 font-medium text-xl">
-                        {{ datas.guest?.total ? (datas.guest?.total + ' Orang') : 'Nope' }}
+                        {{ datas.guest?.total ? (datas.guest?.total + ' Orang') : 'Nihil' }}
                     </div>
                 </div>
                 <div class="flex items-center justify-center bg-blue-100 dark:bg-blue-400/10 rounded-border" style="width: 2.5rem; height: 2.5rem">
                     <i class="pi pi-users text-blue-500 !text-xl"></i>
                 </div>
             </div>
-            <span class="text-primary font-medium">Klik di sini </span>
-            <span class="text-muted-color">untuk melihat detail</span>
+            <!-- <span class="text-primary font-medium">Klik di sini </span>
+            <span class="text-muted-color">untuk melihat detail</span> -->
         </div>
     </div>
     <div class="col-span-12 lg:col-span-6 xl:col-span-3">
@@ -64,15 +64,15 @@ const _detail = (val) => {
                 <div>
                     <span class="block text-muted-color font-medium mb-4">Tamu Bulan Ini</span>
                     <div class="text-surface-900 dark:text-surface-0 font-medium text-xl">
-                        {{ datas.guest?.months ? (datas.guest?.months + ' Orang') : 'Nope' }}
+                        {{ datas.guest?.months ? (datas.guest?.months + ' Orang') : 'Nihil' }}
                     </div>
                 </div>
                 <div class="flex items-center justify-center bg-orange-100 dark:bg-orange-400/10 rounded-border" style="width: 2.5rem; height: 2.5rem">
                     <i class="pi pi-calendar text-orange-500 !text-xl"></i>
                 </div>
             </div>
-            <span class="text-primary font-medium">Klik di sini </span>
-            <span class="text-muted-color">untuk melihat detail</span>
+            <!-- <span class="text-primary font-medium">Klik di sini </span>
+            <span class="text-muted-color">untuk melihat detail</span> -->
         </div>
     </div>
     <div id="intra" class="col-span-12 lg:col-span-6 xl:col-span-3" style="cursor: pointer" @mouseover="mouseOnCard('intra')" @mouseout="mouseOutCard('intra')" @click="_detail('intra')">
@@ -81,15 +81,15 @@ const _detail = (val) => {
                 <div>
                     <span class="block text-muted-color font-medium mb-4">Tamu Hari Ini</span>
                     <div class="text-surface-900 dark:text-surface-0 font-medium text-xl">
-                        {{ datas.guest?.today ? (datas.guest?.today + ' Orang') : 'Nope' }}
+                        {{ datas.guest?.today ? (datas.guest?.today + ' Orang') : 'Nihil' }}
                     </div>
                 </div>
                 <div class="flex items-center justify-center bg-cyan-100 dark:bg-cyan-400/10 rounded-border" style="width: 2.5rem; height: 2.5rem">
                     <i class="pi pi-calendar-clock text-cyan-500 !text-xl"></i>
                 </div>
             </div>
-            <span class="text-primary font-medium">Klik di sini </span>
-            <span class="text-muted-color">untuk melihat detail</span>
+            <!-- <span class="text-primary font-medium">Klik di sini </span>
+            <span class="text-muted-color">untuk melihat detail</span> -->
         </div>
     </div>
     <!-- <div id="metro" class="col-span-12 lg:col-span-6 xl:col-span-3" style="cursor: pointer" @mouseover="mouseOnCard('metro')" @mouseout="mouseOutCard('metro')" @click="_detail('metro')">

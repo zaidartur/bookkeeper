@@ -48,7 +48,7 @@ onMounted(() => {
 
 const getSeverity = (tr) => {
     switch (tr) {
-        case 'finish':
+        case 'finished':
             return 'success';
 
         case 'progress':
@@ -172,10 +172,10 @@ const showImage = (img) => {
 <template>
     <Toast />
     <ConfirmDialog></ConfirmDialog>
-    <Head title="Report Trouble/Masalah" />
+    <Head title="Laporan Trouble/Masalah" />
 
     <Card class="w-full">
-        <template #title><i class="pi pi-sitemap"></i> Report of Network Trouble</template>
+        <template #title><i class="pi pi-sitemap"></i> Laporan Permasalahan Jaringan dan Internet</template>
         <template #content>
             <div class="mt-5">
                 <DataTable v-model:filters="filters" :value="dataTrouble" paginator showGridlines :rows="15" :rowsPerPageOptions="[5, 10, 15, 20, 50]" tableStyle="min-width: 50rem" filterDisplay="menu" dataKey="id" :loading="loading" :globalFilterFields="['kategori', 'lokasi', 'problem']">
@@ -186,7 +186,7 @@ const showImage = (img) => {
                                 <InputIcon>
                                     <i class="pi pi-search" />
                                 </InputIcon>
-                                <InputText v-model="filters['global'].value" placeholder="Pencarian Umum" />
+                                <InputText v-model="filters['global'].value" placeholder="Pencarian" />
                             </IconField>
                         </div>
                     </template>
@@ -276,31 +276,31 @@ const showImage = (img) => {
                 <div class="card flex flex-wrap gap-4 w-45">
                     <div class="flex-auto">
                         <label for="" class="font-bold block"> Tanggal Permasalahan </label>
-                        <InputText v-model="formAdd.mulai" placeholder="Tanggal Mulai" class="w-full" disabled />
+                        <InputText v-model="formAdd.mulai" placeholder="Tanggal Mulai" class="w-full" readonly />
                     </div>
                     <div class="flex-auto">
                         <label for="petugas" class="font-bold block"> Jam Mulai </label>
-                        <InputText v-model="formAdd.jam" placeholder="Jam Mulai" class="w-full" disabled />
+                        <InputText v-model="formAdd.jam" placeholder="Jam Mulai" class="w-full" readonly />
                     </div>
                 </div>
                 <div class="card flex flex-wrap gap-4 -mt-20">
                     <div class="flex-auto">
                         <label for="" class="font-bold block"> Site/Lokasi </label>
-                        <Textarea v-model="formAdd.lokasi" rows="5" style="resize: none;" class="w-full" disabled />
+                        <Textarea v-model="formAdd.lokasi" rows="5" style="resize: none;" class="w-full" readonly />
                     </div>
                     <div class="flex-auto">
                         <label for="" class="font-bold block"> Deskripsi Permasalahan </label>
-                        <Textarea v-model="formAdd.deskripsi" rows="5" style="resize: none;" class="w-full" disabled />
+                        <Textarea v-model="formAdd.deskripsi" rows="5" style="resize: none;" class="w-full" readonly />
                     </div>
                 </div>
                 <div class="card flex flex-wrap gap-4 -mt-20">
                     <div class="flex-auto">
                         <label for="" class="font-bold block"> Kategori </label>
-                        <InputText :value="setCategories(formAdd.kategori)" placeholder="Kategori" class="w-full" disabled />
+                        <InputText :value="setCategories(formAdd.kategori)" placeholder="Kategori" class="w-full" readonly />
                     </div>
                     <div class="flex-auto"> 
                         <label for="" class="font-bold block"> Petugas </label>
-                        <InputText v-model="formAdd.petugas" placeholder="Petugas" class="w-full" disabled />
+                        <InputText v-model="formAdd.petugas" placeholder="Petugas" class="w-full" readonly />
                     </div>
                 </div>
                 <div class="card flex flex-wrap gap-4 -mt-20" v-if="src">
@@ -318,17 +318,17 @@ const showImage = (img) => {
                 <div class="card flex flex-wrap gap-4   ">
                     <div class="flex-auto">
                         <label for="tglSelesai" class="font-bold block"> Tanggal Selesai </label>
-                        <InputText v-model="formConfirm.selesai" placeholder="Tanggal Selesai" class="w-full" disabled />
+                        <InputText v-model="formConfirm.selesai" placeholder="Tanggal Selesai" class="w-full" readonly />
                     </div>
                     <div class="flex-auto">
                         <label for="jamSelesai" class="font-bold block">Jam Selesai </label>
-                        <InputText v-model="formConfirm.jam" placeholder="Jam Selesai" class="w-full" disabled />
+                        <InputText v-model="formConfirm.jam" placeholder="Jam Selesai" class="w-full" readonly />
                     </div>
                 </div>
                 <div class="card flex flex-wrap gap-4 -mt-20">
                     <div class="flex-auto">
                         <label for="icondisplay" class="font-bold block"> Action/Solusi </label>
-                        <Textarea v-model="formConfirm.solusi" rows="5" style="resize: none;" class="w-full" disabled />
+                        <Textarea v-model="formConfirm.solusi" rows="5" style="resize: none;" class="w-full" readonly />
                     </div>
                 </div>
                 <div class="card flex flex-wrap gap-4 -mt-20 mb-8" v-if="srcFinish">

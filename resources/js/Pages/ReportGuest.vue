@@ -1,5 +1,4 @@
 <script setup>
-import { defineProps } from "vue";
 import { usePage } from '@inertiajs/vue3';
 import AppLayout from "@/Layouts/AppLayout.vue";
 import Report from '@/Pages/Guest/Report.vue';

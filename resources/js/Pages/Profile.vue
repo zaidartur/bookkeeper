@@ -1,18 +1,17 @@
 <script setup>
-import { defineProps } from "vue";
-import { usePage } from '@inertiajs/vue3';
+import { usePage, useForm } from '@inertiajs/vue3';
 import AppLayout from "@/Layouts/AppLayout.vue";
-import Report from '@/Pages/Maintenance/Report.vue';
+import View from '@/Pages/Profile/View.vue';
 
 const user = usePage().props.auth.user;
 const init = defineProps({
+    activity: Object,
     lists: Object,
 })
-
 </script>
 
 <template>
     <app-layout>
-        <Report :user="user" :lists="init.lists" />
+        <View :user="user" :activity="init.activity" :lists="init.lists" />
     </app-layout>
 </template>

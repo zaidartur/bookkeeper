@@ -27,28 +27,27 @@ const model = ref([
     {
         label: 'Setting',
         icon: 'pi pi-fw pi-briefcase',
-        to: '/pages',
         items: [
-            {
-                label: 'Data Admin',
-                icon: 'pi pi-fw pi-verified',
-                to: '/pages/crud'
-            },
+            // {
+            //     label: 'Data Admin',
+            //     icon: 'pi pi-fw pi-verified',
+            //     to: '/pages/crud'
+            // },
             {
                 label: 'Data Petugas',
                 icon: 'pi pi-fw pi-users',
-                to: '/pages/crud'
+                to: '/petugas'
             },
             {
                 label: 'Profile',
                 icon: 'pi pi-fw pi-exclamation-circle',
-                to: '/pages/notfound'
+                to: '/profile'
             },
-            {
-                label: 'Logout',
-                icon: 'pi pi-fw pi-sign-out',
-                to: '/pages/empty'
-            }
+            // {
+            //     label: 'Logout',
+            //     icon: 'pi pi-fw pi-sign-out',
+            //     to: '/logout'
+            // }
         ]
     },
 ]);
