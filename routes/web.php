@@ -71,10 +71,15 @@ Route::post('/buku-tamu/save-form', [DashboardController::class, 'save_guest'])-
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'index'])->name('profile');
+
+    Route::post('/create-user', [ProfileController::class, 'create_user'])->name('profile.user.new');
+    Route::post('/profile', [ProfileController::class, 'update_profile'])->name('profile.update');
+    Route::post('/check-password', [ProfileController::class, 'check_password'])->name('profile.password.check');
+    Route::post('/change-password', [ProfileController::class, 'update_password'])->name('profile.password.update');
     
     // Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    // Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    // Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
 require __DIR__.'/auth.php';
