@@ -25,7 +25,7 @@ class TroubleController extends Controller
         // status = progress & finish
         $data = [
             'lists' => Trouble::where('status', 'finished')->orderBy('tgl_trouble', 'desc')->get(),
-            'dates' => Trouble::where('status', 'finished')->groupBy('tgl_trouble', 'desc')->select('tgl_trouble')->get(),
+            'dates' => Trouble::where('status', 'finished')->groupBy('tgl_trouble')->select('tgl_trouble')->get(),
         ];
         return Inertia::render('ReportTrouble', $data);
     }

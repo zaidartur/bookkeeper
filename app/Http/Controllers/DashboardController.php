@@ -48,7 +48,7 @@ class DashboardController extends Controller
     {
         $data = [
             'lists'     => BukuTamu::orderBy('tanggal', 'desc')->get(),
-            'dates'     => BukuTamu::groupBy('tanggal', 'desc')->select('tanggal')->get(),
+            'dates'     => BukuTamu::groupBy('tanggal')->select('tanggal')->get(),
         ];
 
         return Inertia::render('ReportGuest', $data);
