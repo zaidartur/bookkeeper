@@ -55,6 +55,20 @@ class ProfileController extends Controller
         return Redirect::route('profile')->with('message', $res);
     }
 
+    public function drop_user(Request $request)
+    {
+        $request->validate(['uuid' => 'required|string']);
+
+        $drop = User::where('uuid', $request->uuid)->delete();
+        if ($drop) {
+            $res = ['status' => 'success', 'msg' => 'User berhasil dihapus'];
+        } else {
+            $res = ['status' => 'failed', 'msg' => 'User gagal dihapus'];
+        }
+
+        return Redirect::route('profile')->with('message', $res);
+    }
+
     public function update_profile(Request $request) 
     {
         $request->validate([
@@ -108,7 +122,7 @@ class ProfileController extends Controller
             'password'  => 'required|string',
         ]);
 
-        $user = User::where('uuid', $request->uuid)->first();
+        $user = User::where('uuid', Auth::user()->uuid)->first();
 
         if ($user && Hash::check(base64_decode($request->password), $user->password)) {
             $res = ['status' => 'success', 'msg' => 'Password sesuai'];

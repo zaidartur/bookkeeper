@@ -73,6 +73,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'index'])->name('profile');
 
     Route::post('/create-user', [ProfileController::class, 'create_user'])->name('profile.user.new');
+    Route::post('/drop-user', [ProfileController::class, 'drop_user'])->name('profile.user.drop');
     Route::post('/profile', [ProfileController::class, 'update_profile'])->name('profile.update');
     Route::post('/check-password', [ProfileController::class, 'check_password'])->name('profile.password.check');
     Route::post('/change-password', [ProfileController::class, 'update_password'])->name('profile.password.update');

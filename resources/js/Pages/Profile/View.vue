@@ -2,11 +2,13 @@
 import { ref, onMounted } from 'vue'
 import { Head, usePage, useForm } from '@inertiajs/vue3';
 import { useToast } from 'primevue/usetoast';
+import { useConfirm } from 'primevue/useconfirm';
 import moment from 'moment';
 import id from 'moment/dist/locale/id';
 import axios from 'axios';
 
 const toast = useToast()
+const confirm = useConfirm()
 const datas = defineProps({
     user: Object,
     activity: Object,
@@ -15,9 +17,12 @@ const datas = defineProps({
 const userList = ref(new Array())
 const loading = ref(true)
 const submitted = ref(false)
+const spinner = ref(false)
+const newDialog = ref(false)
 const editDialog = ref(false)
 const editPassword = ref(false)
 const checkPwd = ref(false)
+const checkMode = ref(null)
 const inputPwd = ref(null)
 const inputUid = ref(null)
 const initData = () => {
@@ -61,13 +66,17 @@ const checking = () => {
     if (inputPwd.value && inputUid.value) {
         submitted.value = true
         axios.post(route('profile.password.check'), {uuid: inputUid.value, password: btoa(inputPwd.value)}).then((response) => {
-            console.log(response)
+            // console.log(response)
             if (response.data.status === 'success') {
                 toast.add({ severity: 'success', summary: 'OK', detail: 'Password sesuai', life: 3000 });
-                formPwd.reset()
-                formPwd.uuid = inputUid.value
                 checkPwd.value = false
-                editPassword.value = true
+                if (checkMode.value === 'password') {
+                    formPwd.reset()
+                    formPwd.uuid = inputUid.value
+                    editPassword.value = true
+                } else if (checkMode.value === 'user') {
+                    confirm_drop(inputUid.value)
+                }
             } else {
                 toast.add({ severity: 'error', summary: 'Error', detail: response.data.msg, life: 3000 });
             }
@@ -84,6 +93,7 @@ const checking = () => {
 const change_pwd = (uid) => {
     inputUid.value = uid
     inputPwd.value = null
+    checkMode.value = 'password'
     checkPwd.value = true
 }
 
@@ -156,8 +166,90 @@ const updateProfile = () => {
 }
 
 const new_user = () => {
-    formUser.reset()
-    toast.add({ severity: 'info', summary: 'Info', detail: 'Coming Soon', life: 3000 });
+    formUser.uuid   = null
+    formUser.name   = null
+    formUser.email  = null
+    formUser.password = null
+
+    inputPwd.value = null
+    newDialog.value = true
+}
+
+const save_user = () => {
+    if (formUser.name && formUser.email && formUser.password) {
+        if (formUser.password === inputPwd.value) {
+            submitted.value = true
+            formUser.post(route('profile.user.new'), {
+                resetOnSuccess: true,
+                onSuccess: (res) => {
+                    const messages = res.props.flash.message
+                    alert_response(messages)
+
+                    initData()
+                    submitted.value = false
+                    newDialog.value = false
+                },
+                onError: () => {
+                    submitted.value = false
+                    toast.add({ severity: 'error', summary: 'Peringatan', detail: 'Terjadi kesalahan pada sistem', life: 3000 });
+                }
+            })
+        } else {
+            toast.add({ severity: 'error', summary: 'Error', detail: 'Password tidak sama', life: 3000 });
+        }
+    } else {
+        toast.add({ severity: 'error', summary: 'Error', detail: 'Inputan wajib diisi', life: 3000 });
+    }
+}
+
+const drop_user = (uid, name) => {
+    confirm.require({
+        message: `Anda yakin ingin menghapus user ${name} ?`,
+        header: 'Danger Zone',
+        icon: 'pi pi-info-circle',
+        rejectLabel: 'Batal',
+        rejectProps: {
+            label: 'Cancel',
+            severity: 'secondary',
+            outlined: true
+        },
+        acceptProps: {
+            label: 'Konfirmasi',
+            severity: 'danger'
+        },
+        accept: () => {
+            // toast.add({ severity: 'info', summary: 'Confirmed', detail: 'Record deleted', life: 3000 });
+            inputUid.value = uid
+            inputPwd.value = null
+            checkMode.value = 'user'
+            checkPwd.value = true
+            
+        },
+        reject: () => {
+            // toast.add({ severity: 'error', summary: 'Rejected', detail: 'You have rejected', life: 3000 });
+        }
+    });
+}
+
+const confirm_drop = (uid) => {
+    if (uid) {
+        const fdrop = useForm({uuid: uid})
+        spinner.value = true
+        fdrop.post(route('profile.user.drop'), {
+            resetOnSuccess: true,
+            onSuccess: (res) => {
+                const messages = res.props.flash.message
+                alert_response(messages)
+
+                initData()
+                spinner.value = false
+            },
+            onError: () => {
+                spinner.value = false
+                toast.add({ severity: 'error', summary: 'Peringatan', detail: 'Terjadi kesalahan pada sistem', life: 3000 });
+            }
+        })
+    }
 }
 
 const alert_response = (rsp) => {
@@ -214,9 +306,10 @@ const alert_response = (rsp) => {
                         <Column field="email" header="Email" style="width: 20%"></Column>
                         <Column header="Opsi" style="width: 20%; text-align: center;" class="w-full text-center">
                             <template #body="slotProps">
-                                <div class="w-full text-center flex gap-4 justify-center">
+                                <div class="w-full text-center flex gap-2">
                                     <Button icon="pi pi-pencil" @click="edit_user(slotProps.data)" v-tooltip.bottom="'Edit User'" severity="secondary" rounded />
-                                    <Button icon="pi pi-key" @click="change_pwd(slotProps.data.uuid)" v-tooltip.bottom="'Ubah Password'" severity="danger" rounded />
+                                    <Button icon="pi pi-key" @click="change_pwd(slotProps.data.uuid)" v-tooltip.bottom="'Ubah Password'" severity="warn" rounded />
+                                    <Button icon="pi pi-trash" @click="drop_user(slotProps.data.uuid, slotProps.data.name)" v-tooltip.bottom="'Hapus User ' + slotProps.data.name" severity="danger" rounded v-if="slotProps.data.uuid != datas.user?.uuid" />
                                 </div>
                             </template>
                         </Column>
@@ -241,7 +334,7 @@ const alert_response = (rsp) => {
         <span class="text-surface-500 dark:text-surface-400 block mb-8">Update Profile.</span>
         <div class="flex items-center gap-4 mb-4">
             <label for="name" class="font-semibold w-24">Name</label>
-            <InputText v-model="formUser.name" id="name" class="flex-auto" autocomplete="name" />
+            <InputText v-model="formUser.name" id="name" class="flex-auto" maxlength="25" autocomplete="name" autofocus />
         </div>
         <div class="flex items-center gap-4 mb-8">
             <label for="email" class="font-semibold w-24">Email</label>
@@ -273,7 +366,7 @@ const alert_response = (rsp) => {
         <div class="flex flex-col items-center">
             <div class="flex flex-col items-start gap-4 mb-4">
                 <label for="password" class="font-semibold">Password Baru</label>
-                <Password v-model="formPwd.password" id="password" toggleMask />
+                <Password v-model="formPwd.password" id="password" toggleMask autofocus />
             </div>
             <div class="flex flex-col items-start gap-4 mb-8">
                 <label for="password_confirm" class="font-semibold">Konfirmasi Password Baru</label>
@@ -283,6 +376,43 @@ const alert_response = (rsp) => {
         <div class="flex justify-end gap-2">
             <Button type="button" label="Cancel" icon="pi pi-times" severity="secondary" @click="editPassword = false"></Button>
             <Button type="button" :label="submitted ? 'Memproses...' : 'Simpan'" :icon="submitted ? 'pi pi-spin pi-spinner' : 'pi pi-save'" @click="update_pwd"></Button>
+        </div>
+    </Dialog>
+
+    <Dialog v-model:visible="newDialog" modal header="Buat Akun" :style="{ width: '35rem' }">
+        <span class="text-surface-500 dark:text-surface-400 block mb-8 text-center w-full">Buat Akun Baru</span>
+        <div class="flex flex-col items-center">
+            <div class="flex flex-col items-start gap-2 mb-4 w-full">
+                <label for="name" class="font-semibold">Name</label>
+                <InputText v-model="formUser.name" id="name" class="flex-auto w-full" maxlength="25" autocomplete="name" autofocus />
+            </div>
+            <div class="flex flex-col items-start gap-2 mb-4 w-full">
+                <label for="email" class="font-semibold">Email</label>
+                <InputText v-model="formUser.email" id="email" class="flex-auto w-full" maxlength="50" autocomplete="email" v-tooltip.focus.top="'Pastikan alamat email berbeda dengan yang sudah terdaftar'" />
+            </div>
+            <div class="flex flex-col items-start gap-2 mb-4 w-full">
+                <label for="password" class="font-semibold">Password</label>
+                <Password v-model="formUser.password" id="password" toggleMask />
+            </div>
+            <div class="flex flex-col items-start gap-2 mb-8 w-full">
+                <label for="password_confirm" class="font-semibold">Konfirmasi Password</label>
+                <Password v-model="inputPwd" id="password_confirm" toggleMask />
+            </div>
+        </div>
+        <div class="flex justify-end gap-2">
+            <Button type="button" label="Batalkan" icon="pi pi-times" severity="secondary" @click="newDialog = false"></Button>
+            <Button type="button" :label="submitted ? 'Memproses...' : 'Simpan'" :icon="submitted ? 'pi pi-spin pi-spinner' : 'pi pi-save'" @click="save_user"></Button>
+        </div>
+    </Dialog>
+
+    <Dialog v-model:visible="spinner" modal :style="{ width: '35rem' }" :closable="false" pt:root:class="!border-0 !bg-transparent" pt:mask:class="backdrop-blur-sm">
+        <div class="flex flex-col gap-4 justify-center">
+            <div class="flex-auto text-center">
+                <i class="pi pi-spin pi-spinner-dotted" style="font-size: 5rem"></i>
+            </div>
+            <div class="flex-auto text-center">
+                <label>Memproses...</label>
+            </div>
         </div>
     </Dialog>
 </template>
