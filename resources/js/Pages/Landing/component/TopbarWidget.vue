@@ -81,17 +81,17 @@ if (queryString.includes('buku-tamu')) {
             </li>
             <li v-if="!isMtc">
                 <a @click="smoothScroll('features')" class="px-0 py-4 text-surface-900 dark:text-surface-0 font-medium text-xl">
-                    <span>Features</span>
+                    <span>Komitmen</span>
                 </a>
             </li>
             <li v-if="!isMtc">
                 <a @click="smoothScroll('highlights')" class="px-0 py-4 text-surface-900 dark:text-surface-0 font-medium text-xl">
-                    <span>Highlights</span>
+                    <span>Galeri</span>
                 </a>
             </li>
             <li v-if="!isMtc">
                 <a @click="smoothScroll('pricing')" class="px-0 py-4 text-surface-900 dark:text-surface-0 font-medium text-xl">
-                    <span>Jaringan</span>
+                    <span>Layanan</span>
                 </a>
             </li>
             <li v-if="isMtc">

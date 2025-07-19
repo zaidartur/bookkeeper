@@ -6,18 +6,22 @@ use App\Http\Controllers\MaintenanceController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\TroubleController;
 use Illuminate\Foundation\Application;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Request;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 Route::get('/', function () {
-    // return Inertia::render('Welcome', [
-    //     'canLogin' => Route::has('login'),
-    //     'canRegister' => Route::has('register'),
-    //     'laravelVersion' => Application::VERSION,
-    //     'phpVersion' => PHP_VERSION,
-    // ]);
-    // return redirect('/');
-    return Inertia::render('Landing');
+    $myapi = (Http::get('https://api.ipify.org?format=json'));
+    $agent = Request::server('HTTP_USER_AGENT');
+    // Log::info('agent', [($agent)]);
+    $data = [
+        'myapi' => json_decode($myapi),
+        'agent' => $agent,
+    ];
+
+    return Inertia::render('Landing', $data);
 });
 
 // Route::get('/dashboard', function () {

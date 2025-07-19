@@ -100,4 +100,16 @@ const env = page.props.env
             </div>
         </div>
     </div>
+
+    <Dialog header="Konfirmasi" v-model:visible="displayConfirmation" :style="{ width: '350px' }" :modal="true">
+        <div class="flex items-center justify-center">
+            <i class="pi pi-exclamation-triangle mr-4" style="font-size: 2rem" />
+            <span>Anda yakin ingin keluar dari sesi ini?</span>
+        </div>
+        <template #footer>
+            <Button label="Batalkan" icon="pi pi-times" @click="closeConfirmation" text severity="secondary" :class="{ 'opacity-25': form.processing }" :disabled="form.processing" />
+            <Button label="Ya, Konfirmasi" icon="pi pi-check" @click="signout" severity="danger"  outlined autofocus :class="{ 'opacity-25': form.processing }" :disabled="form.processing" />
+        </template>
+    </Dialog>
+    <form @submit.prevent="signout"></form>
 </template>

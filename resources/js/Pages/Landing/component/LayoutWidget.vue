@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { defineProps, ref, onMounted  } from 'vue';
+import ScrollTop from 'primevue/scrolltop';
 
 import FeaturesWidget from './FeaturesWidget.vue';
 import FooterWidget from './FooterWidget.vue';
@@ -25,6 +26,7 @@ const datas = defineProps({
             </div>
             
             <slot></slot>
+            <ScrollTop />
         </div>
     </div>
 </template>

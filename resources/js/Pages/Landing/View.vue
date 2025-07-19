@@ -10,7 +10,9 @@ import TopbarWidget from './component/TopbarWidget.vue';
 import LayoutWidget from './component/LayoutWidget.vue';
 
 const datas = defineProps({
-    user: Object
+    user: Object,
+    api: Object,
+    agent: Object,
 })
 
 // console.log('ini', datas.user)
@@ -24,6 +26,6 @@ const datas = defineProps({
         <FeaturesWidget />
         <HighlightsWidget />
         <PricingWidget />
-        <FooterWidget />
+        <FooterWidget :api="datas.api" :agent="datas.agent" />
     </layout-widget>
 </template>

@@ -71,7 +71,7 @@ function itemClick(event, item) {
             <span class="layout-menuitem-text">{{ item.label }}</span>
             <i class="pi pi-fw pi-angle-down layout-submenu-toggler" v-if="item.items"></i>
         </a>
-        <NavLink v-if="item.to && !item.items && item.visible !== false" :class="[item.class, { 'active-route': $page.url === item.to }]" :href="item.to" :method="method">
+        <NavLink v-if="item.to && !item.items && item.visible !== false" :class="[item.class, { 'active-route': $page.url === item.to }]" :href="item.to" :method="item.method ?? 'get'">
             <i :class="item.icon" class="layout-menuitem-icon"></i>
             <span class="layout-menuitem-text">{{ item.label }}</span>
             <i class="pi pi-fw pi-angle-down layout-submenu-toggler" v-if="item.items"></i>

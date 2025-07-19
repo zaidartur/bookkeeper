@@ -43,11 +43,12 @@ const model = ref([
                 icon: 'pi pi-fw pi-exclamation-circle',
                 to: '/profile'
             },
-            // {
-            //     label: 'Logout',
-            //     icon: 'pi pi-fw pi-sign-out',
-            //     to: '/logout'
-            // }
+            {
+                label: 'Logout',
+                icon: 'pi pi-fw pi-sign-out',
+                to: '/logout',
+                method: 'post',
+            }
         ]
     },
 ]);
