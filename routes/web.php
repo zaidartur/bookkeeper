@@ -5,7 +5,6 @@ use App\Http\Controllers\IpAddressController;
 use App\Http\Controllers\MaintenanceController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\TroubleController;
-use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Request;
@@ -13,9 +12,19 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 Route::get('/', function () {
-    $myapi = (Http::get('https://api.ipify.org?format=json'));
+    try {
+        $api = Http::get('https://api.seeip.org/jsonip?');
+        if ($api) {
+            $myapi = $api;
+        } else {
+            $myapi = json_encode([]);
+        }
+    } catch (Exception $err) {
+        Log::debug('err', [$err]);
+        $myapi = json_encode([]);
+    }
     $agent = Request::server('HTTP_USER_AGENT');
-    // Log::info('agent', [($agent)]);
+    // Log::info('api', [($myapi)]);
     $data = [
         'myapi' => json_decode($myapi),
         'agent' => $agent,

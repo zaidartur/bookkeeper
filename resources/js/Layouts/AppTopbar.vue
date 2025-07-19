@@ -38,7 +38,7 @@ const env = page.props.env
                 <i class="pi pi-bars"></i>
             </button>
             <router-link to="/" class="layout-topbar-logo">
-                <svg viewBox="0 0 54 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- <svg viewBox="0 0 54 40" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path
                         fill-rule="evenodd"
                         clip-rule="evenodd"
@@ -54,8 +54,8 @@ const env = page.props.env
                             fill="var(--primary-color)"
                         />
                     </g>
-                </svg>
-
+                </svg> -->
+                <img src="assets/images/icon_logo.png" alt="Hero Image" class="w-9/12 md:w-auto" style="max-height: 36%; max-width: 36px;" />
                 <span>DC KRA</span>
             </router-link>
         </div>
@@ -78,20 +78,24 @@ const env = page.props.env
             </div>
 
             <button
+                v-tooltip.bottom="'Tema'"
                 class="layout-topbar-menu-button layout-topbar-action"
                 v-styleclass="{ selector: '@next', enterFromClass: 'hidden', enterActiveClass: 'animate-scalein', leaveToClass: 'hidden', leaveActiveClass: 'animate-fadeout', hideOnOutsideClick: true }"
                 type="button"
-                v-tooltip.bottom="'Tema'"
             >
                 <i class="pi pi-ellipsis-v"></i>
             </button>
 
             <div class="layout-topbar-menu hidden lg:block">
                 <div class="layout-topbar-menu-content">
-                    <button type="button" class="layout-topbar-action">
+                    <Link href="/profile" method="get" as="button" class="layout-topbar-action" v-tooltip.bottom="'Profile'">
                         <i class="pi pi-user"></i>
                         <span>Profile</span>
-                    </button>
+                    </Link>
+                    <!-- <button type="button" class="layout-topbar-action">
+                        <i class="pi pi-user"></i>
+                        <span>Profile</span>
+                    </button> -->
                     <button type="button" class="layout-topbar-action" v-tooltip.bottom="'Logout'" @click="openConfirmation">
                         <i class="pi pi-sign-out"></i>
                         <span>Logout</span>

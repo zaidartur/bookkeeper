@@ -6,7 +6,6 @@ import FooterWidget from './component/FooterWidget.vue';
 import HeroWidget from './component/HeroWidget.vue';
 import HighlightsWidget from './component/HighlightsWidget.vue';
 import PricingWidget from './component/PricingWidget.vue';
-import TopbarWidget from './component/TopbarWidget.vue';
 import LayoutWidget from './component/LayoutWidget.vue';
 
 const datas = defineProps({

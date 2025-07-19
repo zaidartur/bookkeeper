@@ -7,7 +7,7 @@
         </div>
 
         <div class="grid grid-cols-12 gap-4 justify-between mt-20 md:mt-0">
-            <div class="col-span-12 lg:col-span-4 p-0 md:p-4">
+            <div class="col-span-12 lg:col-span-4 p-0 md:p-4" v-animateonscroll="{ enterClass: 'animate-enter fade-in-10 zoom-in-50 animate-duration-1000' }">
                 <div class="p-4 flex flex-col border-surface-200 dark:border-surface-600 pricing-card cursor-pointer border-2 hover:border-primary duration-300 transition-all" style="border-radius: 10px">
                     <div class="text-surface-900 dark:text-surface-0 text-center my-8 text-3xl">Pengelolaan Pusat Data</div>
                     <img src="/assets/images/landing/free.svg" class="w-10/12 mx-auto" alt="free" />
@@ -36,7 +36,7 @@
                 </div>
             </div>
 
-            <div class="col-span-12 lg:col-span-4 p-0 md:p-4 mt-6 md:mt-0">
+            <div class="col-span-12 lg:col-span-4 p-0 md:p-4 mt-6 md:mt-0" v-animateonscroll="{ enterClass: 'animate-enter fade-in-10 zoom-in-75 animate-duration-1000' }">
                 <div class="p-4 flex flex-col border-surface-200 dark:border-surface-600 pricing-card cursor-pointer border-2 hover:border-primary duration-300 transition-all" style="border-radius: 10px">
                     <div class="text-surface-900 dark:text-surface-0 text-center my-8 text-3xl">Infrastruktur Jaringan Pemda</div>
                     <img src="/assets/images/landing/startup.svg" class="w-10/12 mx-auto" alt="startup" />
@@ -65,7 +65,7 @@
                 </div>
             </div>
 
-            <div class="col-span-12 lg:col-span-4 p-0 md:p-4 mt-6 md:mt-0">
+            <div class="col-span-12 lg:col-span-4 p-0 md:p-4 mt-6 md:mt-0" v-animateonscroll="{ enterClass: 'animate-enter fade-in-10 zoom-in-50 animate-duration-1000' }">
                 <div class="p-4 flex flex-col border-surface-200 dark:border-surface-600 pricing-card cursor-pointer border-2 hover:border-primary duration-300 transition-all" style="border-radius: 10px">
                     <div class="text-surface-900 dark:text-surface-0 text-center my-8 text-3xl">Layanan Pusat Data untuk OPD</div>
                     <img src="/assets/images/landing/enterprise.svg" class="w-10/12 mx-auto" alt="enterprise" />

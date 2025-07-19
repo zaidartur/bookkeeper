@@ -8,7 +8,6 @@ const datas = defineProps({
     api: Object,
     agent: Object,
 })
-console.log(datas.api)
 
 onMounted(() => {
     if (datas.api) {
@@ -22,6 +21,9 @@ onMounted(() => {
 </script>
 
 <template>
+    <div class="m-5 mx-24">
+        <Divider />
+    </div>
     <div class="py-6 px-6 mx-0 mt-20 lg:mx-20">
         <div class="grid grid-cols-12 gap-4">
             <div class="col-span-12 md:col-span-2">
@@ -71,14 +73,17 @@ onMounted(() => {
                     <div class="col-span-12 md:col-span-3">
                         <h4 class="font-medium text-2xl leading-normal mb-4 text-surface-900 dark:text-surface-0">Alamat</h4>
                         <p class="leading-normal text-lg block mb-2 text-surface-700 dark:text-surface-100">
-                            Jl. Lawu No.385 B, Badran Asri, Kel. Cangakan, Kec. Karanganyar, Kab. Karanganyar, Jawa Tengah, 57715
+                            Gedung B Lt. 1 Komplek Sekretariat Daerah <br>
+                            Jl. Lawu No.385 B, Badran Asri, Kel. Cangakan, Kec. Karanganyar, Kab. Karanganyar, Jawa Tengah, 57715 <br>
+                            <a href="mailto:diskominfo@karanganyarkab.go.id"><u>diskominfo@karanganyarkab.go.id</u></a>
                         </p>
                     </div>
 
                     <div class="col-span-12 md:col-span-3">
                         <h4 class="font-medium text-2xl leading-normal mb-4 text-surface-900 dark:text-surface-0">Sosial</h4>
                         <a href="https://diskominfo.karanganyarkab.go.id" target="_blank" class="leading-normal text-xl block cursor-pointer mb-2 text-surface-700 dark:text-surface-100">Website</a>
-                        <a class="leading-normal text-xl block cursor-pointer mb-2 text-surface-700 dark:text-surface-100">Instagram</a>
+                        <a href="https://www.instagram.com/diskominfo_karanganyar" target="_blank" class="leading-normal text-xl block cursor-pointer mb-2 text-surface-700 dark:text-surface-100">Instagram</a>
+                        <a href="https://www.facebook.com/diskominfo.karanganyar" target="_blank" class="leading-normal text-xl block cursor-pointer mb-2 text-surface-700 dark:text-surface-100">Facebook</a>
                     </div>
 
                     <div class="col-span-12 md:col-span-6">

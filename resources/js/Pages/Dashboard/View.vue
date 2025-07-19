@@ -8,6 +8,7 @@ import NotificationsWidget from '@/Pages/Dashboard/component/NotificationsWidget
 import RevenueStreamWidget from '@/Pages/Dashboard/component/RevenueStreamWidget.vue';
 import StatsTrouble from '@/Pages/Dashboard/component/StatsTrouble.vue';
 import StatsGuest from '@/Pages/Dashboard/component/StatsGuest.vue';
+import StatsDevice from '@/Pages/Dashboard/component/StatsDevice.vue';
 
 import AppLayout from "@/Layouts/AppLayout.vue";
 
@@ -27,10 +28,11 @@ const _today = moment().format('dddd, DD MMMM YYYY')
         </div>
         <StatsTrouble :troubles="datas.troubles" />
         <StatsGuest :guest="datas.guest" />
+        <StatsDevice />
 
-        <div class="col-span-12">
+        <!-- <div class="col-span-12">
             <RevenueStreamWidget />
-        </div>
+        </div> -->
         <!-- <div class="col-span-12 xl:col-span-6">
             <BestSellingWidget />
         </div>
