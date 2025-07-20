@@ -6,6 +6,7 @@ import { useForm, usePage } from '@inertiajs/vue3';
 import Button from 'primevue/button';
 import Dialog from 'primevue/dialog';
 import NavLink from '@/Components/NavLink.vue';
+import Logo from '@/Assets/images/icon_logo.png';
 
 const { toggleMenu, toggleDarkMode, isDarkTheme } = useLayout();
 const form = useForm({})
@@ -55,7 +56,7 @@ const env = page.props.env
                         />
                     </g>
                 </svg> -->
-                <img src="assets/images/icon_logo.png" alt="Hero Image" class="w-9/12 md:w-auto" style="max-height: 36%; max-width: 36px;" />
+                <img :src="Logo" alt="Logo" class="w-9/12 md:w-auto" style="max-height: 36%; max-width: 36px;" />
                 <span>DC KRA</span>
             </router-link>
         </div>
