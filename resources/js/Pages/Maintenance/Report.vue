@@ -164,7 +164,7 @@ const detailData = (slot) => {
         srcFinish.value     = false
 
         form.mulai       = moment(slot.tanggal_mulai).format('DD MMMM YYYY')
-        form.jam         = slot.jam_mlai
+        form.jam         = slot.jam_mulai
         form.judul       = slot.judul
         form.deskripsi   = slot.deskripsi
         form.lokasi      = slot.lokasi

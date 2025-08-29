@@ -224,7 +224,12 @@ const showModal = () => {
 const onFormSubmit = () => {
     checkValidationNew()
     if (formAdd.mulai && formAdd.jam && formAdd.lokasi && formAdd.deskripsi && formAdd.kategori && formAdd.petugas) {
-        console.log(formAdd)
+        // console.log(formAdd)
+        const _time = moment(formAdd.jam).format('HH:mm')
+        const _date = moment(formAdd.mulai).format('YYYY-MM-DD')
+        formAdd.jam = _time
+        formAdd.mulai = _date
+
         submitted.value = true
         if (statusForm.value === 'new') {
             formAdd.post('/trouble/save', {
@@ -269,7 +274,12 @@ const onFormSubmit = () => {
 const onFormConfirm = () => {
     checkValidationConfirm()
     if (formConfirm.selesai && formConfirm.jam && formConfirm.solusi) {
-        console.log(formConfirm)
+        // console.log(formConfirm)
+        const _date = moment(formConfirm.selesai).format('YYYY-MM-DD')
+        const _time = moment(formConfirm.jam).format('HH:mm')
+        formConfirm.selesai = _date
+        formConfirm.jam = _time
+
         submitted.value = true
         formConfirm.post('/trouble/confirm', {
             resetOnSuccess: true,

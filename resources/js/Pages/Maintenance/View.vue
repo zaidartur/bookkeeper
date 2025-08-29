@@ -6,8 +6,10 @@ import { useToast } from 'primevue/usetoast';
 import { Form } from '@primevue/forms';
 import { zodResolver } from '@primevue/forms/resolvers/zod';
 import { z } from 'zod';
+import moment from 'moment';
 import FileUpload from 'primevue/fileupload';
 
+moment.locale('id')
 const toast = useToast();
 const isFocus = ref(false)
 const submitted = ref(false)
@@ -113,6 +115,11 @@ const initData = () => {
 
 const onFormSubmit = ({ valid }) => {
     if (valid) {
+        const _date = moment(form.tanggal).format('YYYY-MM-DD')
+        const _time = moment(form.jam).format('HH:mm')
+        form.tanggal = _date
+        form.jam = _time
+
         submitted.value = true
         form.post('/maintenance/save', {
             resetOnSuccess: true,
