@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\IpAddressController;
 use App\Http\Controllers\MaintenanceController;
 use App\Http\Controllers\ProfileController;
@@ -14,6 +15,7 @@ use Inertia\Inertia;
 Route::get('/', function () {
     try {
         $api = Http::get('https://api.seeip.org/jsonip?');
+        Log::info($api);
         if ($api) {
             $myapi = $api;
         } else {
@@ -73,6 +75,14 @@ Route::prefix('/')->middleware('auth')->group(function() {
         Route::get('/maintenance', [MaintenanceController::class, 'report'])->name('report.maintenance');
         Route::get('/guest', [DashboardController::class, 'report_guest'])->name('report.guest');
         // Route::post('/guest/import', [DashboardController::class, 'import_guest'])->name('report.guest.import');
+    });
+
+    Route::prefix('/inventory')->group(function() {
+        Route::get('/master-data', [InventoryController::class, 'master'])->name('inventory.master');
+        Route::get('/list-barang', [InventoryController::class, 'show'])->name('inventory.list');
+
+        Route::post('/save-master', [InventoryController::class, 'save_master'])->name('inventory.master.save');
+        Route::post('/save-data', [InventoryController::class, 'save_inventory'])->name('inventory.save');
     });
 
     Route::get('/bukutamu', [DashboardController::class, 'view_import'])->name('import.guest');

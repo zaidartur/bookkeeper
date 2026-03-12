@@ -25,6 +25,22 @@ const model = ref([
         ]
     },
     {
+        label: 'Inventory',
+        icon: 'pi pi-fw pi-briefcase',
+        items: [
+            {
+                label: 'Master Data',
+                icon: 'pi pi-fw pi-warehouse',
+                to: '/inventory/master-data',
+            },
+            {
+                label: 'Data Barang',
+                icon: 'pi pi-fw pi-sort-amount-down',
+                to: '/inventory/list-barang',
+            }
+        ],
+    },
+    {
         label: 'Setting',
         icon: 'pi pi-fw pi-briefcase',
         items: [

@@ -9,14 +9,236 @@ const toast = useToast();
 moment.locale('id')
 
 const datas = defineProps({
-    troubles: Object
+    troubles: Object,
+    grafik: Object,
+    guest: Object,
 })
+
 const lists = ref(new Array())
 const detailTrouble = ref()
 const category = ref(null)
 
+const chartData = ref()
+const chartOptions = ref()
+const guestData = ref()
+const guestOption = ref()
+const bulan = ref(['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'])
+const listBulan = ref()
+const listSet = ref()
+const listGuest = ref()
+const chartGuest = ref()
+
+const setBulan = () => {
+    listBulan.value = []
+    if (datas.grafik && Array.isArray(datas.grafik?.bulan) && datas.grafik.bulan.length > 0) {
+        datas.grafik.bulan.map((bln) => {
+            const numeric = parseInt(bln.bulan) - 1
+            listBulan.value.push(bulan.value[numeric])
+        })
+    }
+}
+
+const initDataset = () => {
+    const documentStyle = getComputedStyle(document.documentElement);
+    listSet.value = []
+    let dataLokal = []
+    let dataIntra = []
+    let dataMetro = []
+    let dataInter = []
+
+    if (datas.grafik && Array.isArray(datas.grafik?.bulan) && datas.grafik.bulan.length > 0) {
+        datas.grafik.bulan.map((bln, i) => {
+            dataLokal.push((datas.grafik?.lokal && datas.grafik?.lokal[i]) ? parseInt(datas.grafik?.lokal[i].total) : 0)
+            dataIntra.push((datas.grafik?.intra && datas.grafik?.intra[i]) ? parseInt(datas.grafik?.intra[i].total) : 0)
+            dataMetro.push((datas.grafik?.metro && datas.grafik?.metro[i]) ? parseInt(datas.grafik?.metro[i].total) : 0)
+            dataInter.push((datas.grafik?.internet && datas.grafik?.internet[i]) ? parseInt(datas.grafik?.internet[i].total) : 0)
+        })
+    }
+    listSet.value = [
+        {
+            type: 'bar',
+            label: 'Lokal',
+            backgroundColor: documentStyle.getPropertyValue('--p-cyan-500'),
+            borderColor: documentStyle.getPropertyValue('--p-cyan-500'),
+            data: dataLokal
+        },
+        {
+            type: 'bar',
+            label: 'Intra',
+            backgroundColor: documentStyle.getPropertyValue('--p-violet-500'),
+            borderColor: documentStyle.getPropertyValue('--p-violet-500'),
+            data: dataIntra
+        },
+        {
+            type: 'bar',
+            label: 'Metro',
+            backgroundColor: documentStyle.getPropertyValue('--p-gray-500'),
+            borderColor: documentStyle.getPropertyValue('--p-gray-500'),
+            data: dataMetro
+        },
+        {
+            type: 'bar',
+            label: 'Internet',
+            backgroundColor: documentStyle.getPropertyValue('--p-rose-500'),
+            borderColor: documentStyle.getPropertyValue('--p-rose-500'),
+            data: dataInter
+        },
+    ]
+}
+
+const monthlyGuest = () => {
+    listGuest.value = []
+    if (datas.guest && Array.isArray(datas.guest?.chart) && datas.guest.chart.length > 0) {
+        datas.guest.chart.map((bln) => {
+            const numeric = parseInt(bln.bulan) - 1
+            listGuest.value.push(bulan.value[numeric])
+        })
+    }
+}
+
+const initGuest = () => {
+    const documentStyle = getComputedStyle(document.documentElement);
+    chartData.value = []
+    let data = []
+
+    if (datas.guest && Array.isArray(datas.guest?.chart) && datas.guest.chart.length > 0) {
+        datas.guest.chart.map((bln, i) => {
+            data.push((datas.guest.chart && datas.guest.chart[i]) ? parseInt(datas.guest.chart[i].total) : 0)
+        })
+    }
+
+    chartGuest.value = [
+        {
+            type: 'line',
+            label: 'Tamu',
+            backgroundColor: documentStyle.getPropertyValue('--p-teal-500'),
+            borderColor: documentStyle.getPropertyValue('--p-teal-500'),
+            data: data,
+            tension: 0.4,
+            fill: false,
+        }
+    ]
+}
+
+const setChartData = () => {
+    return {
+        labels: listBulan.value,
+        datasets: listSet.value
+    }
+}
+
+const setChartOptions = () =>  {
+    const documentStyle = getComputedStyle(document.documentElement);
+    const textColor = documentStyle.getPropertyValue('--p-text-color');
+    const textColorSecondary = documentStyle.getPropertyValue('--p-text-muted-color');
+    const surfaceBorder = documentStyle.getPropertyValue('--p-content-border-color');
+
+    return {
+        maintainAspectRatio: false,
+        aspectRatio: 0.8,
+        plugins: {
+            tooltips: {
+                mode: 'index',
+                intersect: false
+            },
+            legend: {
+                labels: {
+                    color: textColor
+                }
+            },
+            title: {
+                display: true,
+                text: 'Grafik Troubleshoot Bulanan'
+            }
+        },
+        scales: {
+            x: {
+                stacked: true,
+                ticks: {
+                    color: textColorSecondary
+                },
+                grid: {
+                    color: surfaceBorder
+                }
+            },
+            y: {
+                stacked: true,
+                ticks: {
+                    color: textColorSecondary
+                },
+                grid: {
+                    color: surfaceBorder
+                }
+            }
+        }
+    };
+}
+
+const setChartGuest = () => {
+    return {
+        labels: listGuest.value,
+        datasets: chartGuest.value
+    }
+}
+
+const chartGuestOption = () => {
+    const documentStyle = getComputedStyle(document.documentElement);
+    const textColor = documentStyle.getPropertyValue('--p-text-color');
+    const textColorSecondary = documentStyle.getPropertyValue('--p-text-muted-color');
+    const surfaceBorder = documentStyle.getPropertyValue('--p-content-border-color');
+
+    return {
+        maintainAspectRatio: false,
+        aspectRatio: 0.6,
+        interaction: {
+            intersect: false,
+            mode: 'index'
+        },
+        plugins: {
+            legend: {
+                labels: false
+            },
+            title: {
+                display: true,
+                text: 'Grafik Tamu Tiap Bulan'
+            }
+        },
+        scales: {
+            x: {
+                ticks: {
+                    color: textColorSecondary,
+                    font: {
+                        weight: 500
+                    }
+                },
+                grid: {
+                    display: false,
+                    drawBorder: false
+                }
+            },
+            y: {
+                ticks: {
+                    color: textColorSecondary
+                },
+                grid: {
+                    color: surfaceBorder,
+                    drawBorder: false
+                }
+            }
+        }
+    }
+}
+
 onMounted(() => {
-    //
+    setBulan()
+    initDataset()
+    monthlyGuest()
+    initGuest()
+
+    chartData.value = setChartData()
+    chartOptions.value = setChartOptions()
+    guestData.value = setChartGuest()
+    guestOption.value = chartGuestOption()
 })
 
 const mouseOnCard = (e) => {
@@ -65,9 +287,21 @@ const _detail = (val, title, event) => {
 <template>
     <Toast />
 
+    <div class="col-span-12">
+        <div class="card flex flex-wrap gap-4">
+            <div class="w-[calc(50%-0.5rem)]">
+                <Chart type="bar" :data="chartData" :options="chartOptions" class="h-[20rem]" />
+            </div>
+            <div class="w-[calc(50%-0.5rem)]">
+                <Chart type="bar" :data="guestData" :options="guestOption" class="h-[20rem]" />
+            </div>
+        </div>
+    </div>
+
     <div class="col-span-12 -mb-5">
         <div class="font-semibold text-xl"><i class="pi pi-wrench"></i> Troubleshoot</div>
     </div>
+
     <div id="lokal" class="col-span-12 lg:col-span-6 xl:col-span-3" style="cursor: pointer" @mouseover="mouseOnCard('lokal')" @mouseout="mouseOutCard('lokal')" @click="_detail(datas.troubles?.lokal, 'Lokal-Kominfo', $event)">
         <div class="card mb-0">
             <div class="flex justify-between mb-4">

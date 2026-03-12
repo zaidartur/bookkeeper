@@ -7,11 +7,13 @@ import AppLayout from "@/Layouts/AppLayout.vue";
 const init = defineProps({
     troubles: Object,
     guest: Object,
+    grafik: Object,
+    inventory: Object,
 })
 </script>
 
 <template>
     <app-layout>
-        <View :troubles="init.troubles" :guest="init.guest" />
+        <View :troubles="init.troubles" :guest="init.guest" :grafik="init.grafik" :invent="init.inventory" />
     </app-layout>
 </template>

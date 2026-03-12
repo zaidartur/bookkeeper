@@ -17,7 +17,7 @@ Route::post('/ping', function(Request $request) {
 
     try {
         // Make a POST request to your Flask backend
-        $response = Http::post('http://127.0.0.1:5000/ping', [
+        $response = Http::post('http://127.0.0.1:5003/ping', [
             'ip_address' => $ipAddress,
         ]);
 

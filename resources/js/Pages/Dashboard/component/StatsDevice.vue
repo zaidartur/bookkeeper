@@ -9,9 +9,9 @@ moment.locale('id')
 const _month = moment().format('MMMM')
 const _year  = new Date().getFullYear()
 
-// const datas = defineProps({
-//     guest: Object
-// })
+const datas = defineProps({
+    invent: Object
+})
 const lists = ref(new Array())
 
 onMounted(() => {
@@ -92,23 +92,21 @@ const _detail = (val) => {
             <span class="text-muted-color">untuk melihat detail</span> -->
         </div>
     </div>
-    <!-- <div id="metro" class="col-span-12 lg:col-span-6 xl:col-span-3" style="cursor: pointer" @mouseover="mouseOnCard('metro')" @mouseout="mouseOutCard('metro')" @click="_detail('metro')">
+    <div id="invent" class="col-span-12 lg:col-span-6 xl:col-span-3" style="cursor: pointer" @mouseover="mouseOnCard('invent')" @mouseout="mouseOutCard('invent')" @click="_detail(datas.troubles?.internet, 'Internet', $event)">
         <div class="card mb-0">
             <div class="flex justify-between mb-4">
                 <div>
-                    <span class="block text-muted-color font-medium mb-4">Internet</span>
+                    <span class="block text-muted-color font-medium mb-4">Inventaris</span>
                     <div class="text-surface-900 dark:text-surface-0 font-medium text-xl">
-                        {{ datas.troubles?.internet ? (datas.troubles?.internet + ' Trouble') : 'No Trouble' }}
+                        {{ datas.invent?.length > 0 ? (datas.invent?.length + ' Barang') : '0' }}
                     </div>
                 </div>
                 <div class="flex items-center justify-center bg-purple-100 dark:bg-purple-400/10 rounded-border" style="width: 2.5rem; height: 2.5rem">
                     <i class="pi pi-sitemap text-purple-500 !text-xl"></i>
                 </div>
             </div>
-            <span class="text-primary font-medium">Klik di sini </span>
-            <span class="text-muted-color">untuk melihat detail</span>
         </div>
-    </div> -->
+    </div>
 </template>
 
 <style lang="scss">

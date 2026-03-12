@@ -188,4 +188,4 @@ def perform_ping_and_emit(ip_address, num_pings, delay_ms, sid):
 if __name__ == '__main__':
     # Run on a specific port, accessible from your Laravel app
     # app.run(host='0.0.0.0', port=5000, debug=True)
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True, allow_unsafe_werkzeug=True)
+    socketio.run(app, host='0.0.0.0', port=5003, debug=True, allow_unsafe_werkzeug=True)

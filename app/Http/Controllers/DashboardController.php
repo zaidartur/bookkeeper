@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Imports\ImportTamu;
 use App\Models\BukuTamu;
+use App\Models\Inventory;
 use App\Models\Trouble;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redirect;
@@ -26,11 +28,21 @@ class DashboardController extends Controller
                     'metro' => Trouble::where('kategori', 'metro')->where('status', 'progress')->get(),
                     'internet' => Trouble::where('kategori', 'internet')->where('status', 'progress')->get(),
                 ],
+            'grafik'    => [
+                    // 'lokal' => Trouble::select(DB::raw('count(id) as total'), DB::raw('MONTH(tgl_trouble) as bulan'), DB::raw('MAX(kategori)'))->groupBy('bulan')->orderBy('bulan')->where('kategori', 'lokal')->get(), // mysql
+                    'lokal'     => Trouble::select(DB::raw('count(id) as total'), DB::raw('strftime("%m", tgl_trouble) AS bulan'), DB::raw('MAX(kategori) as kategori'))->groupBy('bulan')->orderBy('bulan')->whereYear('tgl_trouble', '<=', date('Y'))->where('kategori', 'lokal')->get(), // sqlite
+                    'intra'     => Trouble::select(DB::raw('count(id) as total'), DB::raw('strftime("%m", tgl_trouble) AS bulan'), DB::raw('MAX(kategori) as kategori'))->groupBy('bulan')->orderBy('bulan')->whereYear('tgl_trouble', '<=', date('Y'))->where('kategori', 'opd')->get(),
+                    'metro'     => Trouble::select(DB::raw('count(id) as total'), DB::raw('strftime("%m", tgl_trouble) AS bulan'), DB::raw('MAX(kategori) as kategori'))->groupBy('bulan')->orderBy('bulan')->whereYear('tgl_trouble', '<=', date('Y'))->where('kategori', 'metro')->get(),
+                    'internet'  => Trouble::select(DB::raw('count(id) as total'), DB::raw('strftime("%m", tgl_trouble) AS bulan'), DB::raw('MAX(kategori) as kategori'))->groupBy('bulan')->orderBy('bulan')->whereYear('tgl_trouble', '<=', date('Y'))->where('kategori', 'internet')->get(),
+                    'bulan'     => Trouble::select(DB::raw('strftime("%m", tgl_trouble) AS bulan'))->groupBy('bulan')->orderBy('bulan')->whereYear('tgl_trouble', '<=', date('Y'))->get(),
+            ],
             'guest'     => [
                     'total' => BukuTamu::count(),
                     'months'=> BukuTamu::whereMonth('tanggal', date('m'))->count(),
                     'today' => BukuTamu::where('tanggal', date('Y-m-d'))->count(),
+                    'chart' => BukuTamu::select(DB::raw('count(id) as total'), DB::raw('strftime("%m", tanggal) AS bulan'))->whereYear('tanggal', '<=', date('Y'))->groupBy('bulan')->orderBy('bulan')->get(),
             ],
+            'inventory' => Inventory::all(),
         ];
         return Inertia::render('Dashboard', $data);
     }

@@ -15,6 +15,8 @@ import AppLayout from "@/Layouts/AppLayout.vue";
 const datas = defineProps({
     troubles: Object,
     guest: Object,
+    grafik: Object,
+    invent: Object,
 })
 const _today = moment().format('dddd, DD MMMM YYYY')
 </script>
@@ -26,9 +28,9 @@ const _today = moment().format('dddd, DD MMMM YYYY')
         <div class="col-span-12">
             <div class="font-semibold text-xl"><i class="pi pi-calendar"></i> {{ _today }}</div>
         </div>
-        <StatsTrouble :troubles="datas.troubles" />
-        <StatsGuest :guest="datas.guest" />
-        <StatsDevice />
+        <StatsTrouble :troubles="datas.troubles" :grafik="datas.grafik" :guest="datas.guest" />
+        <!-- <StatsGuest :guest="datas.guest" /> -->
+        <StatsDevice :invent="datas.invent" />
 
         <!-- <div class="col-span-12">
             <RevenueStreamWidget />
