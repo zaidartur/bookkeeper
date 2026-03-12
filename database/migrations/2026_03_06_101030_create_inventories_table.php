@@ -22,7 +22,7 @@ return new class extends Migration
             $table->enum('method', ['pengadaan', 'pemeliharaan']);
             $table->enum('status', ['idle', 'backup', 'terpasang']);
             $table->string('uid_location', '40');
-            $table->string('condition');
+            // $table->string('condition');
             $table->string('notes')->nullable();
             $table->string('user_id', '40');
             $table->timestamps();

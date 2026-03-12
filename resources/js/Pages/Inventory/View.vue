@@ -28,6 +28,7 @@ const dataCategory = ref()
 const dataBrand = ref()
 const dataLocation = ref()
 const maxDate = ref(new Date())
+const condition = ref()
 
 const loading = ref(true)
 const dataInvent = ref(Array())
@@ -83,6 +84,11 @@ const isType = () => {
 }
 const isDate = () => {
     form.date_in ? rules.value.date_in = false : rules.value.date_in = true
+    if (form.date_in) {
+        calculateCondition(form.date_in)
+    } else {
+        condition.value = ''
+    }
 }
 const isMethod = () => {
     form.method ? rules.value.method = false : rules.value.method = true
@@ -95,6 +101,60 @@ const isLoc = () => {
 }
 const isCondition = () => {
     form.condition ? rules.value.condition = false : rules.value.condition = true
+}
+
+const calculateCondition = (dt) => {
+    const _def  = 5
+    const _now  = moment().format('YYYY')
+    const _date = moment(dt).format('YYYY')
+    const ages  = parseInt(_now) - parseInt(_date)
+    const _diff = _def - ages
+
+    let text = `<h2>Usia Barang <b>\u00B1 ${ages} tahun</b></h2>`
+    text += `<h2>Sisa Usia Barang <b>${_diff} tahun</b></h2>`
+    text += `<h2>Kesimpulan: `
+    if (ages < 5) {
+        text += `<span style="color: #4ade80"><u>Masih Baik</u></span>`
+    } else if (ages === 5) {
+        text += `<span style="color: #fb923c"><u>Siap Rencana Pengadaan</u></span>`
+    } else if (ages > 5) {
+        text += '<span style="color: #f87171"><u>Disarankan Ganti</u></span>'
+    }
+    text += '</h2>'
+    condition.value = text
+}
+
+const tableAge = (dt) => {
+    const _def  = 5
+    const _now  = moment().format('YYYY')
+    const _date = moment(dt).format('YYYY')
+    const ages  = parseInt(_now) - parseInt(_date)
+    const _diff = _def - ages
+
+    if (ages < 5) {
+    return 'success'
+    } else if (ages === 5) {
+    return 'warn'
+    } else if (ages > 5) {
+    return 'danger'
+    }
+}
+
+const labelAge = (dt) => {
+    const _def  = 5
+    const _now  = moment().format('YYYY')
+    const _date = moment(dt).format('YYYY')
+    const ages  = parseInt(_now) - parseInt(_date)
+    const _diff = _def - ages
+
+    if (ages < 5) {
+        return 'Masih Baik'
+    } else if (ages === 5) {
+        return 'Siap Rencana Pengadaan'
+    } else if (ages > 5) {
+        return 'Disarankan Ganti'
+    }
+    text += '</h2>'
 }
 
 const initData = () => {
@@ -225,7 +285,7 @@ const editData = (res) => {
 
 const onFormSubmit = () => {
     checkValidationNew()
-    if (form.cat && form.brand && form.type && form.date_in && form.method && form.status && form.loc && form.condition) {
+    if (form.cat && form.brand && form.type && form.date_in && form.method && form.status && form.loc) {
         const _date = moment(form.date_in).format('YYYY-MM-DD')
         form.date_in = _date
         form.brand = form.brand.value
@@ -307,8 +367,10 @@ onMounted(() => {
                 <DataTable v-model:filters="filters" :value="dataInvent" paginator showGridlines :rows="15" :rowsPerPageOptions="[5, 10, 15, 20, 50]" tableStyle="min-width: 50rem" filterDisplay="menu" dataKey="id" :loading="loading" :globalFilterFields="['kategori', 'lokasi', 'status']">
                     <template #header>
                         <div class="flex justify-between">
-                            <Button type="button" icon="pi pi-filter-slash" label="Bersihkan Filter" outlined @click="clearFilter()" />
-                            <Button type="button" severity="info" icon="pi pi-plus" label="Tambah Data" @click="newData()" />
+                            <div class="flex flex-wrap gap-4">
+                                <Button type="button" icon="pi pi-filter-slash" label="Bersihkan Filter" outlined @click="clearFilter()" />
+                                <Button type="button" severity="info" icon="pi pi-plus" label="Tambah Data" @click="newData()" />
+                            </div>
                             <IconField>
                                 <InputIcon>
                                     <i class="pi pi-search" />
@@ -333,12 +395,12 @@ onMounted(() => {
                             <InputText v-model="filterModel.value" type="text" placeholder="Cari Kategori" />
                         </template>
                     </Column>
-                    <Column field="" header="Merek" style="width: 25%">
+                    <Column field="" header="Merek" style="width: 20%">
                         <template #body="{ data }">
                             {{ data.brand.brand }}
                         </template>
                     </Column>
-                    <Column field="" header="Tipe" style="width: 15%">
+                    <Column field="" header="Tipe" style="width: 10%">
                         <template #body="slotProps">
                             {{ slotProps.data.type }}
                         </template>
@@ -362,6 +424,13 @@ onMounted(() => {
                         </template>
                         <template #filter="{ filterModel }">
                             <InputText v-model="filterModel.value" type="text" placeholder="Cari Lokasi" />
+                        </template>
+                    </Column>
+                    <Column header="Usia" style="width: 10%">
+                        <template #body="slotProps">
+                            <Tag v-tooltip="labelAge(slotProps.data.date_in)" :severity="tableAge(slotProps.data.date_in)">
+                                {{ parseInt(moment().format('YYYY')) - parseInt(moment(slotProps.data.date_in).format('YYYY')) }} tahun
+                            </Tag>
                         </template>
                     </Column>
 
@@ -440,15 +509,19 @@ onMounted(() => {
                     </div>
                 </div>
                 <div class="card flex flex-wrap gap-4 -mt-20">
-                    <div class="w-[calc(50%-0.5rem)]">
+                    <!-- <div class="w-[calc(50%-0.5rem)]">
                         <label for="" class="font-bold block"> Kondisi Barang </label>
-                        <!-- <InputText v-model="form.condition" placeholder="Tulis disini..." class="w-full" :invalid="rules.condition" @blur="isCondition" @change="isCondition" /> -->
                         <Textarea v-model="form.condition" rows="6" style="resize: none;" class="w-full" :invalid="rules.condition" @blur="isCondition" @change="isCondition" />
                         <Message v-if="rules.condition" severity="error" size="small" variant="simple">Kondisi wajib diisi</Message>
-                    </div>
+                    </div> -->
                     <div class="w-[calc(50%-0.5rem)]">
                         <label for="" class="font-bold block"> Keterangan (opsional) </label>
                         <Textarea v-model="form.notes" rows="6" style="resize: none;" class="w-full"  />
+                    </div>
+                    <div class="w-[calc(50%-0.5rem)]">
+                        Kondisi Barang
+                        <!-- <Textarea v-model="form.condition" rows="6" style="resize: none;" class="w-full" readonly="" /> -->
+                         <div class="pre-formatted text-2xl" v-html="condition"></div>
                     </div>
                 </div>
 
@@ -470,55 +543,55 @@ onMounted(() => {
 
     <Dialog v-model:visible="detailDialog" maximizable modal header="Detail Data" :style="{width: '90rem'}" :breakpoints="{ '1199px': '75vw', '575px': '90vw' }">
         <div class="card flex flex-wrap gap-4">
-                    <div class="w-[calc(50%-0.5rem)]">
-                        <label for="" class="font-bold block"> Kategori </label>
-                        <InputText v-model="form.cat" class="w-full" />
-                    </div>
-                    <div class="w-[calc(50%-0.5rem)]">
-                        <label for="" class="font-bold block"> Merek Barang </label>
-                        <InputText v-model="form.brand" class="w-full" />
-                    </div>
-                </div>
-                <div class="card flex flex-wrap gap-4 -mt-20">
-                    <div class="w-[calc(50%-0.5rem)]">
-                        <label for="" class="font-bold block"> Tipe (Seri) Barang </label>
-                        <InputText v-model="form.type" class="w-full" />
-                    </div>
-                    <div class="w-[calc(50%-0.5rem)]">
-                        <label for="" class="font-bold block"> Lokasi Barang </label>
-                        <InputText v-model="form.loc" class="w-full" />
-                    </div>
-                </div>
-                <div class="card flex flex-wrap gap-4 -mt-20">
-                    <div class="w-[calc(50%-0.5rem)]">
-                        <label for="" class="font-bold block"> Serial Number Device</label>
-                        <InputText v-model="form.serial" class="w-full" />
-                    </div>
-                    <div class="w-[calc(50%-0.5rem)]">
-                        <label for="" class="font-bold block"> Tanggal Masuk </label>
-                        <InputText v-model="form.date_in" class="w-full" />
-                    </div>
-                </div>
-                <div class="card flex flex-wrap gap-4 -mt-20">
-                    <div class="w-[calc(50%-0.5rem)]">
-                        <label for="" class="font-bold block"> Metode Pengadaan</label>
-                        <InputText v-model="form.method" class="w-full" />
-                    </div>
-                    <div class="w-[calc(50%-0.5rem)]">
-                        <label for="" class="font-bold block"> Status Barang </label>
-                        <InputText v-model="form.status" class="w-full" />
-                    </div>
-                </div>
-                <div class="card flex flex-wrap gap-4 -mt-20">
-                    <div class="w-[calc(50%-0.5rem)]">
-                        <label for="" class="font-bold block"> Kondisi Barang </label>
-                        <Textarea v-model="form.condition" rows="6" style="resize: none;" class="w-full" />
-                    </div>
-                    <div class="w-[calc(50%-0.5rem)]">
-                        <label for="" class="font-bold block"> Keterangan (opsional) </label>
-                        <Textarea v-model="form.notes" rows="6" style="resize: none;" class="w-full"  />
-                    </div>
-                </div>
+            <div class="w-[calc(50%-0.5rem)]">
+                <label for="" class="font-bold block"> Kategori </label>
+                <InputText v-model="form.cat" class="w-full" />
+            </div>
+            <div class="w-[calc(50%-0.5rem)]">
+                <label for="" class="font-bold block"> Merek Barang </label>
+                <InputText v-model="form.brand" class="w-full" />
+            </div>
+        </div>
+        <div class="card flex flex-wrap gap-4 -mt-20">
+            <div class="w-[calc(50%-0.5rem)]">
+                <label for="" class="font-bold block"> Tipe (Seri) Barang </label>
+                <InputText v-model="form.type" class="w-full" />
+            </div>
+            <div class="w-[calc(50%-0.5rem)]">
+                <label for="" class="font-bold block"> Lokasi Barang </label>
+                <InputText v-model="form.loc" class="w-full" />
+            </div>
+        </div>
+        <div class="card flex flex-wrap gap-4 -mt-20">
+            <div class="w-[calc(50%-0.5rem)]">
+                <label for="" class="font-bold block"> Serial Number Device</label>
+                <InputText v-model="form.serial" class="w-full" />
+            </div>
+            <div class="w-[calc(50%-0.5rem)]">
+                <label for="" class="font-bold block"> Tanggal Masuk </label>
+                <InputText v-model="form.date_in" class="w-full" />
+            </div>
+        </div>
+        <div class="card flex flex-wrap gap-4 -mt-20">
+            <div class="w-[calc(50%-0.5rem)]">
+                <label for="" class="font-bold block"> Metode Pengadaan</label>
+                <InputText v-model="form.method" class="w-full" />
+            </div>
+            <div class="w-[calc(50%-0.5rem)]">
+                <label for="" class="font-bold block"> Status Barang </label>
+                <InputText v-model="form.status" class="w-full" />
+            </div>
+        </div>
+        <div class="card flex flex-wrap gap-4 -mt-20">
+            <div class="w-[calc(50%-0.5rem)]">
+                <label for="" class="font-bold block"> Kondisi Barang </label>
+                <Textarea v-model="form.condition" rows="6" style="resize: none;" class="w-full" />
+            </div>
+            <div class="w-[calc(50%-0.5rem)]">
+                <label for="" class="font-bold block"> Keterangan (opsional) </label>
+                <Textarea v-model="form.notes" rows="6" style="resize: none;" class="w-full"  />
+            </div>
+        </div>
 
         <div class="flex flex-col md:flex-row mt-20">
             <div class="w-full flex flex-col gap-4">
@@ -531,3 +604,10 @@ onMounted(() => {
         </div>
     </Dialog>
 </template>
+
+
+<style scoped>
+.pre-formatted {
+    white-space: pre-wrap; /* This preserves newlines and wraps long lines */
+}
+</style>

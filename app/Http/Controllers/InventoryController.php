@@ -47,7 +47,7 @@ class InventoryController extends Controller
             'method'    => 'required|string|in:pengadaan,pemeliharaan',
             'status'    => 'required|string|in:idle,terpasang,backup',
             'loc'       => 'required|string|max:40',
-            'condition' => 'required|string|max:100',
+            // 'condition' => 'required|string|max:100',
             'notes'     => 'nullable|string|max:100',
             'user'      => 'nullable|string|max:40',
             'mode'      => 'required|string|in:new,edit',
@@ -71,7 +71,6 @@ class InventoryController extends Controller
         $init->method       = $request->method;
         $init->status       = $request->status;
         $init->uid_location = $request->loc;
-        $init->condition    = $request->condition;
         $init->notes        = $request->notes;
         $init->user_id      = Auth::user()->uuid;
 
