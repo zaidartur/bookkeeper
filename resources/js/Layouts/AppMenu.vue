@@ -65,6 +65,28 @@ const model = ref([
             //     to: '/logout',
             //     method: 'post',
             // }
+            {
+                label: 'Landing',
+                icon: 'pi pi-fw pi-crown',
+                // to: '/profile'
+                items: [
+                    {
+                        label: 'Card',
+                        icon: 'pi pi-fw pi-box',
+                        to: '/landing/card'
+                    },
+                    {
+                        label: 'Galeri',
+                        icon: 'pi pi-fw pi-image',
+                        to: '/landing/gallery'
+                    },
+                    {
+                        label: 'Layanan',
+                        icon: 'pi pi-fw pi-thumbs-up',
+                        to: '/landing/service'
+                    }
+                ]
+            },
         ]
     },
 ]);
