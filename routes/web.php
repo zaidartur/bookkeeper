@@ -4,6 +4,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\IpAddressController;
 use App\Http\Controllers\MaintenanceController;
+use App\Http\Controllers\MonitoringController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\TroubleController;
 use Illuminate\Support\Facades\Http;
@@ -83,6 +84,11 @@ Route::prefix('/')->middleware('auth')->group(function() {
 
         Route::post('/save-master', [InventoryController::class, 'save_master'])->name('inventory.master.save');
         Route::post('/save-data', [InventoryController::class, 'save_inventory'])->name('inventory.save');
+    });
+
+    Route::prefix('/monitoring')->group(function() {
+        Route::get('/devices', [MonitoringController::class, 'view_server'])->name('monitoring.device');
+        Route::post('/detail', [MonitoringController::class, 'detail_device'])->name('monitoring.detail');
     });
 
     Route::get('/bukutamu', [DashboardController::class, 'view_import'])->name('import.guest');
