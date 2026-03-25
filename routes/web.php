@@ -89,6 +89,9 @@ Route::prefix('/')->middleware('auth')->group(function() {
     Route::prefix('/monitoring')->group(function() {
         Route::get('/devices', [MonitoringController::class, 'view_server'])->name('monitoring.device');
         Route::post('/detail', [MonitoringController::class, 'detail_device'])->name('monitoring.detail');
+
+        Route::get('/snmp', [MonitoringController::class, 'load_snmp']);
+        Route::get('/testing', [MonitoringController::class, 'test_snmp']);
     });
 
     Route::get('/bukutamu', [DashboardController::class, 'view_import'])->name('import.guest');

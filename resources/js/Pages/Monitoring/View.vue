@@ -19,6 +19,7 @@ const dataDevice = ref()
 const loading = ref(true)
 const submitted = ref(false)
 const setHostname = ref()
+const setHostType = ref()
 const detailCard = ref({
     version: '',
     ip: '',
@@ -43,14 +44,14 @@ const dataUptime = ref('0')
 const chartRef = ref({})
 const chartInstance = shallowRef({})
 const chartDataStore = ref({
-    load: { labels: [], values: [] },
-    cpu: { labels: [], values: [] },
-    mem_use: { labels: [], values: [] },
-    mem_ava: { labels: [], values: [] },
-    disk_r: { labels: [], values: [] },
-    disk_w: { labels: [], values: [] },
-    net_in: { labels: [], values: [] },
-    net_out: { labels: [], values: [] },
+    load: { labels: [], values: [], units: '' },
+    cpu: { labels: [], values: [], units: '' },
+    mem_use: { labels: [], values: [], units: '' },
+    mem_ava: { labels: [], values: [], units: '' },
+    disk_r: { labels: [], values: [], units: '' },
+    disk_w: { labels: [], values: [], units: '' },
+    net_in: { labels: [], values: [], units: '' },
+    net_out: { labels: [], values: [], units: '' },
 });
 
 // chart doughnut
@@ -64,7 +65,7 @@ cpuMetrics.forEach(metric => {
 const isDarkMode = () => document.documentElement.classList.contains('p-dark')
 
 // multi-chart option
-const createOption = (key, title, labels, values, color, isBytes = false) => ({
+const createOption = (key, title, labels, values, color, isUnit = '') => ({
     backgroundColor: 'transparent',
     // title: { text: title, textStyle: { fontSize: 13, fontWeight: 'normal' } },
     tooltip: { 
@@ -73,7 +74,8 @@ const createOption = (key, title, labels, values, color, isBytes = false) => ({
         formatter: (params) => {
             let res = `<div style="font-weight:bold; margin-bottom:5px;">${params[0].name}</div>`;
             params.forEach(item => {
-                const formattedValue = isBytes ? formatBytesAuto(item.value) : (item.value.toFixed(2) + `${key === 'cpu' ? '%' : ''}`)
+                // const formattedValue = isBytes ? formatBytesAuto(item.value) : (item.value.toFixed(2) + `${key === 'cpu' ? '%' : ''}`)
+                const formattedValue = `${item.value.toFixed(2)} ${isUnit}`
                 res += `
                     <div style="display:flex; justify-content:between; gap:10px;">
                         <span>${item.marker} ${item.seriesName}</span>
@@ -81,7 +83,7 @@ const createOption = (key, title, labels, values, color, isBytes = false) => ({
                     </div>
                 `;
             });
-            return res;
+            return res
         }
     },
     grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
@@ -95,7 +97,14 @@ const createOption = (key, title, labels, values, color, isBytes = false) => ({
         type: 'value', 
         max: (key === 'cpu' ? 100 : null),
         axisLabel: { 
-            formatter: (value) => isBytes ? formatBytesAuto(value, 1) : value,
+            formatter: (value) => `${value} ${isUnit}`,
+            // formatter: (params) => {
+            //     let res = isBytes ? formatBytesAuto(params.value, 1) : params.value
+            //     if (isSpeed) {
+            //         res += `/sec`
+            //     }
+            //     return res
+            // },
             color: isDarkMode() ? '#999' : '#666',
             fontSize: 10,
         },
@@ -122,14 +131,14 @@ const createOption = (key, title, labels, values, color, isBytes = false) => ({
 const initCharts = () => {
     const documentStyle = getComputedStyle(document.documentElement);
     const configs = [
-        { key: 'load', label: 'CPU Load Avg', color: documentStyle.getPropertyValue('--p-teal-500'), converts: false },
-        { key: 'cpu', label: 'CPU Usage', color: documentStyle.getPropertyValue('--p-green-500'), converts: false },
-        { key: 'mem_use', label: 'Memory in Use', color: documentStyle.getPropertyValue('--p-yellow-500'), converts: true },
-        { key: 'mem_ava', label: 'Memory Available', color: documentStyle.getPropertyValue('--p-red-500'), converts: true },
-        { key: 'disk_r', label: 'Disk Read', color: documentStyle.getPropertyValue('--p-purple-500'), converts: true },
-        { key: 'disk_w', label: 'Disk Write', color: documentStyle.getPropertyValue('--p-indigo-500'), converts: true },
-        { key: 'net_in', label: 'Network In', color: documentStyle.getPropertyValue('--p-lime-500'), converts: true },
-        { key: 'net_out', label: 'Network Out', color: documentStyle.getPropertyValue('--p-slate-500'), converts: true },
+        { key: 'load', label: 'CPU Load Avg (1 minute)', color: documentStyle.getPropertyValue('--p-teal-500'), units: '' },
+        { key: 'cpu', label: 'CPU Usage', color: documentStyle.getPropertyValue('--p-green-500'), units: '' },
+        { key: 'mem_use', label: 'Memory in Use', color: documentStyle.getPropertyValue('--p-yellow-500'), units: '' },
+        { key: 'mem_ava', label: 'Memory Available', color: documentStyle.getPropertyValue('--p-red-500'), units: '' },
+        { key: 'disk_r', label: 'Disk Read', color: documentStyle.getPropertyValue('--p-purple-500'), units: '' },
+        { key: 'disk_w', label: 'Disk Write', color: documentStyle.getPropertyValue('--p-indigo-500'), units: '' },
+        { key: 'net_in', label: 'Network In', color: documentStyle.getPropertyValue('--p-lime-500'), units: '' },
+        { key: 'net_out', label: 'Network Out', color: documentStyle.getPropertyValue('--p-slate-500'), units: '' },
     ]
 
     configs.forEach(cfg => {
@@ -139,7 +148,7 @@ const initCharts = () => {
         if (chartInstance.value[cfg.key]) chartInstance.value[cfg.key].dispose()
 
         const instance = echarts.init(el, isDarkMode() ? 'dark' : null)
-        instance.setOption(createOption(cfg.key, cfg.label, chartDataStore.value[cfg.key].labels, chartDataStore.value[cfg.key].values, cfg.color, cfg.converts))
+        instance.setOption(createOption(cfg.key, cfg.label, chartDataStore.value[cfg.key].labels, chartDataStore.value[cfg.key].values, cfg.color, chartDataStore.value[cfg.key].units))
         chartInstance.value[cfg.key] = instance
     })
 }
@@ -149,9 +158,10 @@ const initData = () => {
     loading.value = false
 }
 
-const get_detail = (dt) => {
+const get_detail = (dt, type) => {
     setHostname.value = dt
-    const form = useForm({ host: dt })
+    setHostType.value = type
+    const form = useForm({ host: dt, type: type })
     submitted.value = true
 
     form.post('/monitoring/detail', {
@@ -162,20 +172,21 @@ const get_detail = (dt) => {
                 fetch_detail(messages.summary)
                 
                 // init data for chart
-                parseInitialData('load', messages.data.load)
-                parseInitialData('cpu', messages.data.cpu)
-                parseInitialData('mem_use', messages.data.memory)
-                parseInitialData('mem_ava', messages.data.memory)
-                parseInitialData('disk_r', messages.data.disk)
-                parseInitialData('disk_w', messages.data.disk)
-                parseInitialData('net_in', messages.data.network)
-                parseInitialData('net_out', messages.data.network)
+                chart_continues('load', messages.data.load)
+                chart_continues('cpu', messages.data.cpu)
+                chart_continues('mem_use', messages.data.memory)
+                chart_continues('mem_ava', messages.data.memory)
+                chart_continues('disk_r', messages.data.disk)
+                chart_continues('disk_w', messages.data.disk)
+                chart_continues('net_in', messages.data.network)
+                chart_continues('net_out', messages.data.network)
 
                 const isUptime = messages.data.uptime
-                dataUptime.value = formatUptime(isUptime.data[0][Object.keys(isUptime.labels).find(k => isUptime.labels[k] === "uptime")])
+                // dataUptime.value = formatUptime(isUptime.data[0][Object.keys(isUptime.labels).find(k => isUptime.labels[k] === "uptime")])
+                dataUptime.value = isUptime
 
                 initCpuDetailCharts()
-                updateCpuDetails(messages.data.cpu)
+                // updateCpuDetails(messages.data.cpu.datas)
 
                 detailDialog.value = true
             } else {
@@ -241,8 +252,51 @@ const parseInitialData = (key, rawData) => {
     }).reverse();
 }
 
+const chartInitData = (key, data) => {
+    if (data && data !== undefined) {
+        let value = 0
+        const unit  = data.unit ?? ''
+        const time  = data.time ?? 0
+        switch (key) {
+            case 'load':
+                value = data.total
+                break
+            case 'cpu':
+                value = data.total
+                break
+            case 'mem_use':
+                value = data.used
+                break
+            case 'mem_ava':
+                value = data.avail
+                break
+            case 'disk_r':
+                value = data.read
+                break
+            case 'disk_w':
+                value = data.write
+                break
+            case 'net_in':
+                value = data.in
+                break
+            case 'net_out':
+                value = data.out
+                break
+        }
+
+        const setDate = moment(new Date(time * 1000)).format('HH:mm:ss')
+        const dataLabel = [setDate]
+        const datavalue = [value]
+
+        chartDataStore.value[key].labels = dataLabel.slice(0, 15).map(d => d).reverse()
+        chartDataStore.value[key].values = datavalue.slice(0, 15).map(d => d).reverse()
+
+        console.log('value', chartDataStore.value[key].values)
+    }   
+}
+
 const get_continues = () => {
-    const form = useForm({ host: setHostname.value })
+    const form = useForm({ host: setHostname.value, type: setHostType.value })
     submitted.value = true
 
     form.post('/monitoring/detail', {
@@ -251,20 +305,21 @@ const get_continues = () => {
             const messages = res.props.flash.message
             if (messages.status === 'success') {
                 fetch_detail(messages.summary)
-                cpu_continues('load', messages.data.load)
-                cpu_continues('cpu', messages.data.cpu)
-                cpu_continues('mem_use', messages.data.memory)
-                cpu_continues('mem_ava', messages.data.memory)
-                cpu_continues('disk_r', messages.data.disk)
-                cpu_continues('disk_w', messages.data.disk)
-                cpu_continues('net_in', messages.data.network)
-                cpu_continues('net_out', messages.data.network)
+                chart_continues('load', messages.data.load)
+                chart_continues('cpu', messages.data.cpu)
+                chart_continues('mem_use', messages.data.memory)
+                chart_continues('mem_ava', messages.data.memory)
+                chart_continues('disk_r', messages.data.disk)
+                chart_continues('disk_w', messages.data.disk)
+                chart_continues('net_in', messages.data.network)
+                chart_continues('net_out', messages.data.network)
 
                 const isUptime = messages.data.uptime
-                dataUptime.value = formatUptime(isUptime.data[0][Object.keys(isUptime.labels).find(k => isUptime.labels[k] === "uptime")])
+                // dataUptime.value = formatUptime(isUptime.data[0][Object.keys(isUptime.labels).find(k => isUptime.labels[k] === "uptime")])
+                dataUptime.value = isUptime
 
                 initCpuDetailCharts()
-                updateCpuDetails(messages.data.cpu)
+                // updateCpuDetails(messages.data.cpu.datas)
             } else {
                 toast.add({ severity: 'error', summary: 'Peringatan', detail: messages.message, life: 3000 });
             }
@@ -337,6 +392,57 @@ const formatUptime = (seconds) => {
 
     return parts.join(' ');
 };
+
+const chart_continues = (key, data) => {
+    if (data && data !== undefined) {
+        let value = 0
+        const unit  = data.unit ?? ''
+        const time  = data.time ?? 0
+        switch (key) {
+            case 'load':
+                value = data.total
+                break
+            case 'cpu':
+                value = data.total
+                break
+            case 'mem_use':
+                value = data.used
+                break
+            case 'mem_ava':
+                value = data.avail
+                break
+            case 'disk_r':
+                value = data.read
+                break
+            case 'disk_w':
+                value = data.write
+                break
+            case 'net_in':
+                value = data.in
+                break
+            case 'net_out':
+                value = data.out
+                break
+        }
+
+        // const setDate = moment(new Date(time)).format('HH:mm:ss')
+        const setDate = moment.unix(time).format('HH:mm:ss')
+        const store = chartDataStore.value[key]
+        store.labels.push(setDate)
+        store.values.push(value)
+        store.units = (unit === 'percentage' ? '%' : (unit === 'load' ? '' : unit))
+
+        if (store.labels.length > 20) {
+            store.labels.shift()
+            store.values.shift()
+        }
+
+        chartInstance.value[key]?.setOption({
+            xAxis: { data: store.labels },
+            series: [{ data: store.values }]
+        })
+    }
+}
 
 const cpu_continues = (key, datas) => {
     const keyTime = Object.keys(datas.labels).find(key => datas.labels[key] === "time")
@@ -417,7 +523,7 @@ watch(detailDialog, async(isOpen) => {
     if (isOpen) {
         await nextTick()
         initCharts()
-        timer = setInterval(() => { get_continues() }, 3000)
+        timer = setInterval(() => { get_continues() }, 5000)
         window.addEventListener('resize', handleResize)
         console.log('started')
     } else {
@@ -550,27 +656,28 @@ onMounted(() => {
                             <label>{{ index + 1 }}</label>
                         </template>
                     </Column>
-                    <Column field="hostname" header="Nama Device / Server" style="width: 30%">
+                    <Column field="hostname" header="Nama Device" style="width: 30%">
                         <template #body="{ data }">
                             {{ data.hostname }}
                         </template>
                     </Column>
-                    <Column field="hops" header="Hops" style="width: 10%">
+                    <Column field="hops" header="Jenis" style="width: 10%">
                         <template #body="{ data }">
-                            {{ data.hops }}
+                            {{ data.type === 'server' ? 'Server' : 'Router/Switch' }}
                         </template>
                     </Column>
-                    <Column field="" header="Status" style="width: 15%">
+                    <Column field="" header="Status" style="width: 10%">
                         <template #body="slotProps">
                             <Tag :severity="slotProps.data.reachable ? 'success' : 'danger'" :value="slotProps.data.reachable ? 'Online' : 'Offline'"></Tag>
                         </template>
                     </Column>
-                    <Column field="guid" header="GUID" style="width: 30%" />
+                    <Column field="ip" header="Alamat IP" style="width: 10%" />
+                    <Column field="label" header="Label" style="width: 25%" />
 
                     <Column header="Opsi" style="width: 10%; text-align: right;" class="justify-items-center">
                         <template #body="slotProps">
                             <div class="w-full text-center">
-                                <Button icon="pi pi-chart-bar" @click="get_detail(slotProps.data.hostname)" v-tooltip.bottom="'Lihat Detail'" :severity="slotProps.data.reachable ? 'success' : 'danger'" variant="text" raised rounded :disabled="!slotProps.data.reachable" />
+                                <Button icon="pi pi-chart-bar" @click="get_detail(slotProps.data.hostname, slotProps.data.type)" v-tooltip.bottom="'Lihat Detail'" :severity="slotProps.data.reachable ? 'success' : 'danger'" variant="text" raised rounded :disabled="!slotProps.data.reachable" />
                             </div>
                         </template>
                     </Column>
