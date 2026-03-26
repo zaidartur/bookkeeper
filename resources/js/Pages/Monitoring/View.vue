@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, watch, shallowRef, markRaw, nextTick, onBeforeMount } from 'vue';
+import { ref, onMounted, watch, shallowRef, markRaw, nextTick, onBeforeMount, onUnmounted } from 'vue';
 import { Head, useForm, usePage } from '@inertiajs/vue3';
 import Toast from 'primevue/toast';
 import { useToast } from 'primevue/usetoast';
@@ -54,8 +54,8 @@ const chartDataStore = ref({
     net_out: { labels: [], values: [], units: '' },
 });
 
-// chart doughnut
-const cpuMetrics = ['user', 'system', 'iowait', 'steal', 'softirq', 'irq', 'nice'];
+// chart gauge
+const cpuMetrics = ['user', 'system', 'iowait', 'steal', 'softirq', 'irq', 'nice', 'guest', 'guest_nice'];
 const cpuChartInstances = shallowRef({});
 const cpuDataStore = ref({});
 cpuMetrics.forEach(metric => {
@@ -75,7 +75,7 @@ const createOption = (key, title, labels, values, color, isUnit = '') => ({
             let res = `<div style="font-weight:bold; margin-bottom:5px;">${params[0].name}</div>`;
             params.forEach(item => {
                 // const formattedValue = isBytes ? formatBytesAuto(item.value) : (item.value.toFixed(2) + `${key === 'cpu' ? '%' : ''}`)
-                const formattedValue = `${item.value.toFixed(2)} ${isUnit}`
+                const formattedValue = `${item.value > 0 ?item.value.toFixed(2) : item.value} ${isUnit}`
                 res += `
                     <div style="display:flex; justify-content:between; gap:10px;">
                         <span>${item.marker} ${item.seriesName}</span>
@@ -161,7 +161,7 @@ const initData = () => {
 const get_detail = (dt, type) => {
     setHostname.value = dt
     setHostType.value = type
-    const form = useForm({ host: dt, type: type })
+    const form = useForm({ host: dt, type: type, init: true })
     submitted.value = true
 
     form.post('/monitoring/detail', {
@@ -172,21 +172,21 @@ const get_detail = (dt, type) => {
                 fetch_detail(messages.summary)
                 
                 // init data for chart
-                chart_continues('load', messages.data.load)
-                chart_continues('cpu', messages.data.cpu)
-                chart_continues('mem_use', messages.data.memory)
-                chart_continues('mem_ava', messages.data.memory)
-                chart_continues('disk_r', messages.data.disk)
-                chart_continues('disk_w', messages.data.disk)
-                chart_continues('net_in', messages.data.network)
-                chart_continues('net_out', messages.data.network)
+                chartInitData('load', messages.data.load)
+                chartInitData('cpu', messages.data.cpu)
+                chartInitData('mem_use', messages.data.memory)
+                chartInitData('mem_ava', messages.data.memory)
+                chartInitData('disk_r', messages.data.disk)
+                chartInitData('disk_w', messages.data.disk)
+                chartInitData('net_in', messages.data.network)
+                chartInitData('net_out', messages.data.network)
 
                 const isUptime = messages.data.uptime
                 // dataUptime.value = formatUptime(isUptime.data[0][Object.keys(isUptime.labels).find(k => isUptime.labels[k] === "uptime")])
                 dataUptime.value = isUptime
 
                 initCpuDetailCharts()
-                // updateCpuDetails(messages.data.cpu.datas)
+                updateCpuDetails(messages.data.cpu, 'init')
 
                 detailDialog.value = true
             } else {
@@ -254,7 +254,7 @@ const parseInitialData = (key, rawData) => {
 
 const chartInitData = (key, data) => {
     if (data && data !== undefined) {
-        let value = 0
+        let value = null
         const unit  = data.unit ?? ''
         const time  = data.time ?? 0
         switch (key) {
@@ -282,21 +282,21 @@ const chartInitData = (key, data) => {
             case 'net_out':
                 value = data.out
                 break
+            case 'time':
         }
 
-        const setDate = moment(new Date(time * 1000)).format('HH:mm:ss')
-        const dataLabel = [setDate]
-        const datavalue = [value]
+        // const setDate = moment(new Date(time * 1000)).format('HH:mm:ss')
+        // const dataLabel = [setDate]
+        // const datavalue = [value]
 
-        chartDataStore.value[key].labels = dataLabel.slice(0, 15).map(d => d).reverse()
-        chartDataStore.value[key].values = datavalue.slice(0, 15).map(d => d).reverse()
-
-        console.log('value', chartDataStore.value[key].values)
+        chartDataStore.value[key].labels = data.time.slice(0, 15).map(d => moment.unix(d).format('HH:mm:ss')).reverse()
+        chartDataStore.value[key].values = value.slice(0, 15).map(d => d).reverse()
+        chartDataStore.value[key].units = (unit === 'percentage' ? '%' : (unit === 'load' ? '' : unit))
     }   
 }
 
 const get_continues = () => {
-    const form = useForm({ host: setHostname.value, type: setHostType.value })
+    const form = useForm({ host: setHostname.value, type: setHostType.value, init: false })
     submitted.value = true
 
     form.post('/monitoring/detail', {
@@ -319,7 +319,7 @@ const get_continues = () => {
                 dataUptime.value = isUptime
 
                 initCpuDetailCharts()
-                // updateCpuDetails(messages.data.cpu.datas)
+                updateCpuDetails(messages.data.cpu, 'loop')
             } else {
                 toast.add({ severity: 'error', summary: 'Peringatan', detail: messages.message, life: 3000 });
             }
@@ -423,6 +423,7 @@ const chart_continues = (key, data) => {
             case 'net_out':
                 value = data.out
                 break
+            case 'time':
         }
 
         // const setDate = moment(new Date(time)).format('HH:mm:ss')
@@ -529,14 +530,14 @@ watch(detailDialog, async(isOpen) => {
     } else {
         clearInterval(timer)
         timer = null
-        window.addEventListener('resize', handleResize)
         Object.values(chartInstance.value).forEach(i => i.dispose())
-        chartInstance.value = {}
+        Object.values(cpuChartInstances.value).forEach(i => i.dispose())
+        window.addEventListener('resize', handleResize)
         console.log('stopped')
     }
 })
 
-const handleResize = () => Object.values(chartInstance.value).forEach(i => i.resize());
+const handleResize = () => Object.values(chartInstance.value).forEach(i => i.resize())
 
 const initCpuDetailCharts = () => {
     cpuMetrics.forEach(metric => {
@@ -544,6 +545,7 @@ const initCpuDetailCharts = () => {
         if (!el) return;
 
         const instance = echarts.init(el, isDarkMode() ? 'dark' : null);
+        const values = cpuDataStore.value[metric];
         
         instance.setOption({
             title: { 
@@ -551,23 +553,107 @@ const initCpuDetailCharts = () => {
                 left: 'center', 
                 textStyle: { fontSize: 12, fontWeight: 'bold' } 
             },
-            grid: { top: 30, bottom: 20, left: 30, right: 10 },
-            xAxis: { type: 'category', data: [], axisLabel: { show: false } },
-            yAxis: { type: 'value', max: 100, splitLine: { lineStyle: { opacity: 0.1 } } },
+            // grid: { top: 30, bottom: 20, left: 30, right: 10 },
+            tooltip: {
+                formatter: '{a} <br/>{b} : {c}%'
+            },
             series: [{
                 name: metric,
-                type: 'pie',
-                radius: ['40%', '70%'],
-                smooth: true,
-                showSymbol: false,
-                areaStyle: { opacity: 0.2 },
-                data: [],
-                itemStyle: { 
-                    color: getMetricColor(metric),
-                    borderRadius: 8,
-                    borderColor: '#fff',
-                    borderWidth: 2
-                }
+                type: 'gauge',
+                startAngle: 215,
+                endAngle: -35,
+                min: 0,
+                max: 100,
+                splitNumber: 10,
+                itemStyle: {
+                    // Warna akan berubah dinamis berdasarkan beban CPU
+                    color: values.value > 85 ? '#ef4444' : values.value > 60 ? '#f59e0b' : '#10b981',
+                    shadowColor: 'rgba(0,138,255,0.45)',
+                    shadowBlur: 10,
+                    shadowOffsetX: 2,
+                    shadowOffsetY: 2
+                },
+                // green dot
+                progress: {
+                    show: true,
+                    roundCap: true,
+                    width: 9
+                },
+                // speed arrow
+                // pointer: {
+                //     icon: 'path://M12.8,0.7l12,18H17.8v22h-10v-22H0.8L12.8,0.7z',
+                //     color: 'cyan',
+                //     length: '12%',
+                //     width: 10,
+                //     offsetCenter: [0, '-40%'],
+                //     itemStyle: {
+                //         color: 'auto'
+                //     }
+                // },
+                // cube line
+                axisLine: {
+                    roundCap: true,
+                    lineStyle: {
+                        width: 9
+                    }
+                },
+                // speed line
+                axisTick: {
+                    distance: 0,
+                    splitNumber: 2,
+                    lineStyle: {
+                        width: 2,
+                        color: '#999'
+                    }
+                },
+                // speed line
+                splitLine: {
+                    distance: 0,
+                    length: 12,
+                    lineStyle: {
+                        width: 3,
+                        color: '#999'
+                    }
+                },
+                // speed label
+                axisLabel: {
+                    distance: 10,
+                    color: '#999',
+                    fontSize: 7
+                },
+                title: {
+                    show: false
+                },
+                detail: {
+                    // backgroundColor: '#fff',
+                    // borderColor: '#999',
+                    // borderWidth: 1,
+                    width: '60%',
+                    lineHeight: 40,
+                    height: 40,
+                    // borderRadius: 4,
+                    offsetCenter: [0, '35%'],
+                    valueAnimation: true,
+                    formatter: function (value) {
+                        return '{value|' + value.toFixed(2) + '}{unit|%}';
+                    },
+                    rich: {
+                        value: {
+                            fontSize: 20,
+                            fontWeight: 'bolder',
+                            color: '#777',
+                            padding: [0, 0, -60, 0]
+                        },
+                        unit: {
+                            fontSize: 12,
+                            color: '#999',
+                            padding: [0, 0, -60, 2]
+                        }
+                    }
+                },
+                data: [
+                    { value: values.value }
+                ]
             }]
         });
         cpuChartInstances.value[metric] = instance;
@@ -588,45 +674,34 @@ const getMetricColor = (m) => {
     return colors[m] || '#64748b';
 };
 
-const updateCpuDetails = (rawData) => {
-    const labels = rawData.labels;
-    const dataRow = rawData.data[0];
-    const timeIndex = labels.indexOf('time');
-    const timeLabel = moment(dataRow[timeIndex] * 1000).format('HH:mm:ss');
+const updateCpuDetails = (rawData, type) => {
+    const dataRow = Object.entries(rawData.datas).map(([key, val]) => ({
+        label: key,
+        value: (type === 'init' ? val[0] : val)
+    }));
+    // const timeLabel = moment.unix(dataRow.time).format('HH:mm:ss');
 
-    cpuMetrics.forEach(metric => {
-        const valIndex = labels.indexOf(metric);
-        if (valIndex === -1) return;
+    dataRow.forEach((metric, i) => {
+        if (metric.label === 'time') return
 
-        const val = dataRow[valIndex];
-        const store = cpuDataStore.value[metric];
+        // console.log(metric, cpuDataStore.value)
+        // const stores = cpuDataStore.value[metric.label]
 
-        store.labels = [timeLabel]
-        store.values = [val.toFixed(2)]
+        // stores.labels = [metric.label]
+        // stores.values = [metric.value > 0 ? metric.value.toFixed(2) : metric.value]
 
-        // if (store.labels.length > 20) {
-        //     store.labels.shift();
-        //     store.values.shift();
-        // }
-
-        cpuChartInstances.value[metric]?.setOption({
-            xAxis: { data: store.labels },
-            // series: [{ data: store.values }]
+        cpuChartInstances.value[metric.label]?.setOption({
             series: [
                 {
-                    data: [
-                        {
-                            value: store.values,
-                        },
-                        {
-                            value: (100 - store.values)
-                        }
-                    ]
+                    data: [{ value: metric.value }],
+                    itemStyle: {
+                        color: metric.value > 85 ? '#ef4444' : metric.value > 60 ? '#f59e0b' : '#10b981'
+                    }
                 }
             ]
-        });
-    });
-};
+        })
+    })
+}
 
 onMounted(() => {
     initData()
@@ -865,7 +940,7 @@ onMounted(() => {
             </div>
         </Panel>
 
-        <Panel header="Real-time Performance" class="mb-5" toggleable>
+        <Panel header="Real-time Performance" class="mb-5" toggleable :key="`perform-${setHostname.replaceAll(' ', '-')}`">
             <div class="grid grid-cols-12 gap-8">
                 <div class="col-span-12 lg:col-span-6 xl:col-span-6">
                     <div class="card mb-0 h-full">
@@ -918,7 +993,7 @@ onMounted(() => {
             </div>
         </Panel>
 
-        <Panel header="Memory Details" class="mb-5" toggleable="">
+        <Panel :header="`CPU Details`" class="mb-5" toggleable :key="`cpu-${setHostname.replaceAll(' ', '-')}`">
             <div class="grid grid-cols-12 gap-8">
                 <div v-for="metric in cpuMetrics" :key="metric" class="col-span-12 md:col-span-4 lg:col-span-3 border p-2 rounded bg-white dark:bg-gray-800">
                     

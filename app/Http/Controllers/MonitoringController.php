@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redirect;
 use Inertia\Inertia;
 
+use function PHPSTORM_META\map;
+
 class MonitoringController extends Controller
 {
     private $baseUrl;
@@ -71,11 +73,13 @@ class MonitoringController extends Controller
     {
         $request->validate([
             'host'  => 'required|string',
-            'type'  => 'required|string|in:server,router'
+            'type'  => 'required|string|in:server,router',
+            'init'  => 'required',
         ]);
 
         $host = $request->host;
-        $data = Cache::remember("netdata_{$host}", 5, function () use ($host) {
+        $init = $request->init;
+        $data = Cache::remember("netdata_{$host}", 5, function () use ($host, $init) {
             $detail     = "{$this->baseUrl}/host/{$host}/api/v1/charts";
             $req_info   = "{$this->baseUrl}/host/{$host}/api/v1/info";
             try {
@@ -98,7 +102,8 @@ class MonitoringController extends Controller
 
                 // $groupedMetrics = collect($availableMetrics)->groupBy('family');
 
-                $details = $this->load_detail($host, 'server');
+                $details = $this->load_detail($host, 'server', $init);
+                // Log::info('memory', [$this->parseServerRam($details['memory'], $init)]);
                 $res = [
                     'status'    => 'success',
                     'summary'   => $myinfo,
@@ -112,12 +117,12 @@ class MonitoringController extends Controller
                     // ],
 
                     'data'      => [
-                        'uptime'    => $this->parseUptime($details['uptime']),
-                        'load'      => $this->parseServerLoad($details['load']),
-                        'cpu'       => $this->parseServerCpu($details['cpu']),
-                        'memory'    => $this->parseServerRam($details['memory']),
-                        'disk'      => $this->parseServerDisk($details['disk']),
-                        'network'   => $this->parseServerNetwork($details['network']),
+                        'uptime'    => $this->parseUptime($details['uptime'], $init),
+                        'load'      => $this->parseServerLoad($details['load'], $init),
+                        'cpu'       => $this->parseServerCpu($details['cpu'], $init),
+                        'memory'    => $this->parseServerRam($details['memory'], $init),
+                        'disk'      => $this->parseServerDisk($details['disk'], $init),
+                        'network'   => $this->parseServerNetwork($details['network'], $init),
                         'alarm'     => $details['alarms']->json(),
                     ],
                 ];
@@ -135,21 +140,21 @@ class MonitoringController extends Controller
         return Redirect::route('monitoring.device')->with('message', $data);
     }
 
-    public function load_detail($host, $type)
+    public function load_detail($host, $type, $init = false)
     {
-        $detail     = "{$this->baseUrl}/host/{$host}/api/v3";
+        $detail     = "{$this->baseUrl}/api/v3";
         // $response   = Http::timeout(3)->get($detail, [
         //     'chart'     => $chart,
         //     'format'    => 'json',
         //     'after'     => -60,
         // ]);
         $response = Http::pool(fn ($pool) => [
-            $pool->as('uptime')->timeout(3)->get("{$detail}/data", ['contexts' => 'system.uptime', 'points' => 1, 'after' => -10]),
-            $pool->as('load')->timeout(3)->get("{$detail}/data", ['contexts' => 'system.load', 'points' => 1, 'after' => -10]),
-            $pool->as('cpu')->timeout(3)->get("{$detail}/data", ['contexts' => 'system.cpu', 'points' => 1, 'after' => -10]),
-            $pool->as('memory')->timeout(3)->get("{$detail}/data", ['contexts' => 'system.ram', 'points' => 1, 'after' => -10]),
-            $pool->as('disk')->timeout(3)->get("{$detail}/data", ['contexts' => 'system.io', 'points' => 1, 'after' => -10]),
-            $pool->as('network')->timeout(3)->get("{$detail}/data", ['contexts' => 'system.ip', 'points' => 1, 'after' => -10]),
+            $pool->as('uptime')->timeout(3)->get("{$detail}/data", ['nodes' => $host, 'contexts' => 'system.uptime', 'points' => ($init ? 0 : 1), 'after' => -10]),
+            $pool->as('load')->timeout(3)->get("{$detail}/data", ['nodes' => $host, 'contexts' => 'system.load', 'points' => ($init ? 0 : 1), 'after' => -10]),
+            $pool->as('cpu')->timeout(3)->get("{$detail}/data", ['nodes' => $host, 'contexts' => 'system.cpu', 'points' => ($init ? 0 : 1), 'after' => -10]),
+            $pool->as('memory')->timeout(3)->get("{$detail}/data", ['nodes' => $host, 'contexts' => 'system.ram', 'points' => ($init ? 0 : 1), 'after' => -10]),
+            $pool->as('disk')->timeout(3)->get("{$detail}/data", ['nodes' => $host, 'contexts' => 'system.io', 'points' => ($init ? 0 : 1), 'after' => -10]),
+            $pool->as('network')->timeout(3)->get("{$detail}/data", ['nodes' => $host, 'contexts' => 'system.ip', 'points' => ($init ? 0 : 1), 'after' => -10]),
             $pool->as('alarms')->timeout(3)->get("{$detail}/alerts", ['status' => 'RAISED', 'vnode' => $host]),
         ]);
 
@@ -214,7 +219,7 @@ class MonitoringController extends Controller
         }
     }
 
-    private function parseUptime($response)
+    private function parseUptime($response, $init = false)
     {
         if (!$response->ok() || empty($response->json('result.data'))) {
             return ['time' => 0];
@@ -227,187 +232,344 @@ class MonitoringController extends Controller
         return $interval->cascade()->forHumans();
     }
 
-    private function parseServerLoad($response)
+    private function parseServerLoad($response, $init = false)
     {
-        $time = 0;
-        if (!$response->ok() || empty($response->json('result.data'))) {
-            return ['time' => $time, 'total' => 0, 'unit' => 'load'];
+        if ($init) {
+            $time = [];
+            if (!$response->ok() || empty($response->json('result.data'))) {
+                return ['time' => $time, 'total' => [0], 'unit' => 'load'];
+            }
+        } else {
+            $time = 0;
+            if (!$response->ok() || empty($response->json('result.data'))) {
+                return ['time' => $time, 'total' => 0, 'unit' => 'load'];
+            }
         }
         
         // 1. Ambil Satuan Dinamis dari blok 'view' (Contoh: "MiB" atau "GiB")
         $unit = $response->json('view.units') ?? '';
         
         // 2. Ambil Label dan Angka dari blok 'result'
-        $labels = $response->json('result.labels') ?? [];
-        $dataRow = $response->json('result.data')[0] ?? [];
+        $dataRow = ($init ? $response->json('result.data') : $response->json('result.data')[0]) ?? [];
         
         $loadData = [];
 
-        foreach ($labels as $index => $label) {
-            if ($index === 0) {
-                // timestamp
-                $time = $dataRow[$index];
-                continue; 
-            } else {
-                $loadData[$label] = abs($dataRow[$index][0] ?? 0); 
-            }
-        }
+        if ($init) {
+            $labels = $response['result']['labels'];
 
-        $load = $loadData['load1'] ?? 0;
+            foreach ($labels as $label) {
+                $loadData[$label] = [];
+            }
+
+            foreach ($response['result']['data'] as $entry) {
+                $rowData = [];
+                foreach ($labels as $index => $label) {
+                    $value = ($index === 0) ? $entry[$index] : $entry[$index][0];
+                    $loadData[$label][] = $value;
+                    $rowData[$label] = $value;
+                }
+            }
+
+            $time = $loadData['time'];
+            $load = $loadData['load1'];
+            Log::info('load', [$loadData]);
+        } else {
+            $labels = $response->json('result.labels') ?? [];
+            foreach ($labels as $index => $label) {
+                if ($index === 0) {
+                    // timestamp
+                    $time = $dataRow[$index];
+                    continue; 
+                } else {
+                    $loadData[$label] = abs($dataRow[$index][0] ?? 0); 
+                }
+            }
+
+            $load = $loadData['load1'] ?? 0;
+        }
 
         return [
             'time'      => $time,
-            'total'     => abs($load),
+            'total'     => $load,
             'unit'      => $unit,
         ];
     }
 
-    private function parseServerCpu($response)
+    private function parseServerCpu($response, $init = false)
     {
-        $time = 0;
-        if (!$response->ok() || empty($response->json('result.data'))) {
-            return ['time' => $time, 'total' => 0, 'unit' => '%'];
+        if ($init) {
+            $time = [];
+            if (!$response->ok() || empty($response->json('result.data'))) {
+                return ['time' => $time, 'total' => [0], 'unit' => '%'];
+            }
+        } else {
+            $time = 0;
+            if (!$response->ok() || empty($response->json('result.data'))) {
+                return ['time' => $time, 'total' => 0, 'unit' => '%'];
+            }
         }
         
         // 1. Ambil Satuan Dinamis dari blok 'view' (Contoh: "MiB" atau "GiB")
         $unit = $response->json('view.units') ?? '%';
         
         // 2. Ambil Label dan Angka dari blok 'result'
-        $labels = $response->json('result.labels') ?? [];
         $dataRow = $response->json('result.data')[0] ?? [];
         
         $cpuData = [];
 
-        foreach ($labels as $index => $label) {
-            if ($index === 0) {
-                $time = $dataRow[$index];
-                continue; 
-            } else {
-                // Ambil index ke-0 dari array bersarang [1457.49, 0, 0]
-                $cpuData[$label] = abs($dataRow[$index][0] ?? 0); 
-            }
-        }
+        if ($init) {
+            $labels = $response['result']['labels'];
 
-        $totalCpu = array_sum($cpuData);
+            foreach ($labels as $label) {
+                $cpuData[$label] = [];
+            }
+
+            $cpuData['total'] = [];
+            foreach ($response['result']['data'] as $entry) {
+                $rowData = [];
+                foreach ($labels as $index => $label) {
+                    $value = ($index === 0) ? $entry[$index] : $entry[$index][0];
+                    $cpuData[$label][] = abs($value);
+                    $rowData[$label] = abs($value);
+                }
+
+                // Total = used + available
+                $total = $rowData['guest_nice'] + $rowData['guest'] + $rowData['steal'] + $rowData['softirq'] + $rowData['irq'] + $rowData['user'] + $rowData['system'] + $rowData['nice'] + $rowData['iowait'];
+
+                // 3. Push calculated values to the new keys
+                $cpuData['total'][] = round($total, 2);
+            }
+
+            $time = $cpuData['time'];
+            $totalCpu = $cpuData['total'];
+        } else {
+            $labels = $response->json('result.labels') ?? [];
+            foreach ($labels as $index => $label) {
+                if ($index === 0) {
+                    $time = $dataRow[$index];
+                    continue; 
+                } else {
+                    // Ambil index ke-0 dari array bersarang [1457.49, 0, 0]
+                    $cpuData[$label] = abs($dataRow[$index][0] ?? 0); 
+                }
+            }
+
+            $totalCpu = array_sum($cpuData);
+        }
 
         return [
             'time'      => $time,
-            'total'     => abs($totalCpu),
+            'total'     => $totalCpu,
             'unit'      => $unit,
             'datas'     => $cpuData,
         ];
     }
 
-    private function parseServerRam($response)
+    private function parseServerRam($response, $init = false)
     {
-        $time = 0;
-        if (!$response->ok() || empty($response->json('result.data'))) {
-            return ['time' => $time, 'used' => 0, 'total' => 0, 'avail' => 0, 'unit' => 'MB'];
+        if ($init) {
+            $time = [];
+            if (!$response->ok() || empty($response->json('result.data'))) {
+                return ['time' => $time, 'used' => [0], 'total' => [0], 'avail' => [0], 'unit' => 'MB'];
+            }
+        } else {
+            $time = 0;
+            if (!$response->ok() || empty($response->json('result.data'))) {
+                return ['time' => $time, 'used' => 0, 'total' => 0, 'avail' => 0, 'unit' => 'MB'];
+            }
         }
         
         // 1. Ambil Satuan Dinamis dari blok 'view' (Contoh: "MiB" atau "GiB")
-        $unit = $response->json('view.units') ?? 'MB';
+        $unit = $response->json('view.units') ?? '';
         
         // 2. Ambil Label dan Angka dari blok 'result'
-        $labels = $response->json('result.labels') ?? [];
-        $dataRow = $response->json('result.data')[0] ?? [];
+        $dataRow = ($init ? $response->json('result.data') : $response->json('result.data')[0]) ?? [];
         
         $ramData = [];
 
-        foreach ($labels as $index => $label) {
-            if ($index === 0) {
-                $time = $dataRow[$index];
-                continue; 
-            } else {
-                // Ambil index ke-0 dari array bersarang [1457.49, 0, 0]
-                $ramData[$label] = abs($dataRow[$index][0] ?? 0); 
-            }
-        }
+        if ($init) {
+            $labels = $response['result']['labels'];
 
-        $used = $ramData['used'] ?? 0;
-        $totalFisik = array_sum($ramData);
-        $percent = $totalFisik > 0 ? round(($used / $totalFisik) * 100) : 0;
+            foreach ($labels as $label) {
+                $ramData[$label] = [];
+            }
+
+            $ramData['available'] = [];
+            $ramData['total'] = [];
+
+            foreach ($response['result']['data'] as $entry) {
+                $rowData = [];
+                foreach ($labels as $index => $label) {
+                    $value = ($index === 0) ? $entry[$index] : $entry[$index][0];
+                    $ramData[$label][] = $value;
+                    $rowData[$label] = $value;
+                }
+
+                $available = $rowData['free'] + $rowData['cached'] + $rowData['buffers'];
+
+                // Total = used + available
+                $total = $rowData['used'] + $available;
+
+                // 3. Push calculated values to the new keys
+                $ramData['available'][] = round($available, 2);
+                $ramData['total'][]     = round($total, 2);
+            }
+
+            $time = $ramData['time'];
+            $used = $ramData['used'];
+            $totalFisik = $ramData['total'];
+            $avail = $ramData['available'];
+        } else {
+            $labels = $response->json('result.labels') ?? [];
+            foreach ($labels as $index => $label) {
+                if ($index === 0) {
+                    $time = $dataRow[$index];
+                    continue; 
+                } else {
+                    $ramData[$label] = abs($dataRow[$index][0] ?? 0);
+                }
+            }
+
+            $used  = abs($ramData['used']) ?? 0;
+            $totalFisik = abs(array_sum($ramData));
+            $avail = abs($totalFisik - $used);
+        }
 
         return [
             'time'      => $time,
-            'used'      => abs($used),
-            'total'     => abs($totalFisik),
-            'avail'     => $totalFisik - $used,
+            'used'      => $used,
+            'total'     => $totalFisik,
+            'avail'     => $avail,
             'unit'      => $unit,
             'datas'     => $ramData,
         ];
     }
 
-    private function parseServerDisk($response)
+    private function parseServerDisk($response, $init = false)
     {
-        $time = 0;
-        if (!$response->ok() || empty($response->json('result.data'))) {
-            return ['time' => $time, 'read' => 0, 'write' => 0, 'unit' => ''];
+        if ($init) {
+            $time = [];
+            if (!$response->ok() || empty($response->json('result.data'))) {
+                return ['time' => $time, 'read' => [0], 'write' => [0], 'unit' => ''];
+            }
+        } else {
+            $time = 0;
+            if (!$response->ok() || empty($response->json('result.data'))) {
+                return ['time' => $time, 'read' => 0, 'write' => 0, 'unit' => ''];
+            }
         }
         
         // 1. Ambil Satuan Dinamis dari blok 'view' (Contoh: "MiB" atau "GiB")
         $unit = $response->json('view.units') ?? '';
         
         // 2. Ambil Label dan Angka dari blok 'result'
-        $labels = $response->json('result.labels') ?? [];
         $dataRow = $response->json('result.data')[0] ?? [];
         
         $diskData = [];
 
-        foreach ($labels as $index => $label) {
-            if ($index === 0) {
-                $time = $dataRow[$index];
-                continue; 
-            } else {
-                // Ambil index ke-0 dari array bersarang [1457.49, 0, 0]
-                $diskData[$label] = abs($dataRow[$index][0] ?? 0); 
-            }
-        }
+        if ($init) {
+            $labels = $response['result']['labels'];
 
-        $reads  = $diskData['reads'] ?? 0;
-        $writes = $diskData['writes'] ?? 0;
+            foreach ($labels as $label) {
+                $diskData[$label] = [];
+            }
+
+            foreach ($response['result']['data'] as $entry) {
+                $rowData = [];
+                foreach ($labels as $index => $label) {
+                    $value = ($index === 0) ? $entry[$index] : $entry[$index][0];
+                    $diskData[$label][] = abs($value);
+                    $rowData[$label] = abs($value);
+                }
+            }
+
+            $time   = $diskData['time'];
+            $reads  = $diskData['reads'];
+            $writes = $diskData['writes'];
+        } else {
+            $labels = $response->json('result.labels') ?? [];
+            foreach ($labels as $index => $label) {
+                if ($index === 0) {
+                    $time = $dataRow[$index];
+                    continue; 
+                } else {
+                    // Ambil index ke-0 dari array bersarang [1457.49, 0, 0]
+                    $diskData[$label] = abs($dataRow[$index][0] ?? 0); 
+                }
+            }
+            $reads  = $diskData['reads'] ?? 0;
+            $writes = $diskData['writes'] ?? 0;
+        }
 
         return [
             'time'      => $time,
-            'read'      => abs($reads),
-            'write'     => abs($writes),
+            'read'      => $reads,
+            'write'     => $writes,
             'unit'      => $unit
         ];
     }
 
-    private function parseServerNetwork($response)
+    private function parseServerNetwork($response, $init = false)
     {
-        $time = 0;
-        if (!$response->ok() || empty($response->json('result.data'))) {
-            return ['time' => $time, 'in' => 0, 'out' => 0, 'unit' => ''];
+        if ($init) {
+            $time = [];
+            if (!$response->ok() || empty($response->json('result.data'))) {
+                return ['time' => $time, 'in' => [0], 'out' => [0], 'unit' => ''];
+            }
+        } else {
+            $time = 0;
+            if (!$response->ok() || empty($response->json('result.data'))) {
+                return ['time' => $time, 'in' => 0, 'out' => 0, 'unit' => ''];
+            }
         }
         
         // 1. Ambil Satuan Dinamis dari blok 'view' (Contoh: "MiB" atau "GiB")
         $unit = $response->json('view.units') ?? '';
         
         // 2. Ambil Label dan Angka dari blok 'result'
-        $labels = $response->json('result.labels') ?? [];
         $dataRow = $response->json('result.data')[0] ?? [];
         
         $networkData = [];
 
-        foreach ($labels as $index => $label) {
-            if ($index === 0) {
-                $time = $dataRow[$index];
-                continue; 
-            } else {
-                // Ambil index ke-0 dari array bersarang [1457.49, 0, 0]
-                $networkData[$label] = abs($dataRow[$index][0] ?? 0); 
-            }
-        }
+        if ($init) {
+            $labels = $response['result']['labels'];
 
-        $in  = $networkData['received'] ?? 0;
-        $out = $networkData['sent'] ?? 0;
+            foreach ($labels as $label) {
+                $diskData[$label] = [];
+            }
+
+            foreach ($response['result']['data'] as $entry) {
+                $rowData = [];
+                foreach ($labels as $index => $label) {
+                    $value = ($index === 0) ? $entry[$index] : $entry[$index][0];
+                    $diskData[$label][] = abs($value);
+                    $rowData[$label] = abs($value);
+                }
+            }
+
+            $time   = $diskData['time'];
+            $in  = $diskData['received'];
+            $out = $diskData['sent'];
+        } else {
+            $labels = $response->json('result.labels') ?? [];
+            foreach ($labels as $index => $label) {
+                if ($index === 0) {
+                    $time = $dataRow[$index];
+                    continue; 
+                } else {
+                    // Ambil index ke-0 dari array bersarang [1457.49, 0, 0]
+                    $networkData[$label] = abs($dataRow[$index][0] ?? 0); 
+                }
+            }
+
+            $in  = $networkData['received'] ?? 0;
+            $out = $networkData['sent'] ?? 0;
+        }
 
         return [
             'time'      => $time,
-            'in'        => abs($in),
-            'out'       => abs($out),
+            'in'        => $in,
+            'out'       => $out,
             'unit'      => $unit
         ];
     }
