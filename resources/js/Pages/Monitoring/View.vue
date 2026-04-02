@@ -458,7 +458,7 @@ const chartInitData = (key, data) => {
 }
 
 const chartInitRouterData = (key, data) => {
-    console.log(data, routerDataStore.value)
+    // console.log(data, routerDataStore.value)
     if (data && data !== undefined) {
         if (key === 'port') {
             const unit = 'mbps'
@@ -524,7 +524,7 @@ const get_continues = () => {
                     totalDrops.value = messages.data.ports.reduce((total, port) => {
                         return total + (port.drops || 0)
                     }, 0)
-                    console.log('ports', messages.data.ports.filter(port => port.name === selectedPort.value.value)[0])
+                    // console.log('ports', messages.data.ports.filter(port => port.name === selectedPort.value.value)[0])
 
                     chart_router_continues('cpu', messages.data.cpu)
                     chart_router_continues('temp', messages.data.cpu_temp)
@@ -565,7 +565,7 @@ const fetch_detail = (data, type) => {
             detailCard.value.alarm.critical = data.alarms.critical
         } else if (type === 'router') {
             data = data[0]
-            console.log('data', data)
+            // console.log('data', data)
             // host, ip, contact, loc, model, desc, version, alert,
             detailCard.value.version    = data.v
             detailCard.value.ip         = data.labels.address
