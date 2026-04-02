@@ -61,6 +61,7 @@ const portDown = ref(0)
 const routerInstance = shallowRef({})
 const routerDataStore = ref({
     cpu: { labels: [], values: [], units: '' },
+    temp: { labels: [], values: [], units: '' },
     ram_used: { labels: [], values: [], units: '' },
     ram_total: { labels: [], values: [], units: '' },
     disk_used: { labels: [], values: [], units: '' },
@@ -125,7 +126,7 @@ const createOption = (key, title, labels, values, color, isUnit = '') => ({
     },
     yAxis: { 
         type: 'value', 
-        max: (key === 'cpu' ? 100 : null),
+        max: ((key === 'cpu' || key === 'temp') ? 100 : null),
         axisLabel: { 
             formatter: (value) => `${value} ${isUnit}`,
             // formatter: (params) => {
@@ -268,6 +269,7 @@ const initChartsRouter = () => {
     const documentStyle = getComputedStyle(document.documentElement);
     const configs = [
         { key: 'cpu', label: 'CPU Usage', color: documentStyle.getPropertyValue('--p-green-500'), units: '' },
+        { key: 'temp', label: 'CPU Temperature', color: documentStyle.getPropertyValue('--p-sky-500'), units: '' },
         { key: 'ram_used', label: 'Memory in Use', color: documentStyle.getPropertyValue('--p-yellow-500'), units: '' },
         { key: 'ram_total', label: 'Memory Available', color: documentStyle.getPropertyValue('--p-red-500'), units: '' },
         { key: 'disk_used', label: 'Disk Used', color: documentStyle.getPropertyValue('--p-purple-500'), units: '' },
@@ -340,6 +342,7 @@ const get_detail = (dt, type) => {
                     }
 
                     chartInitRouterData('cpu', messages.data.cpu)
+                    chartInitRouterData('temp', messages.data.cpu_temp)
                     chartInitRouterData('ram_used', messages.data.ram_used)
                     chartInitRouterData('ram_total', messages.data.ram_total)
                     chartInitRouterData('disk_used', messages.data.disk_used)
@@ -524,6 +527,7 @@ const get_continues = () => {
                     console.log('ports', messages.data.ports.filter(port => port.name === selectedPort.value.value)[0])
 
                     chart_router_continues('cpu', messages.data.cpu)
+                    chart_router_continues('temp', messages.data.cpu_temp)
                     chart_router_continues('ram_used', messages.data.ram_used)
                     chart_router_continues('ram_total', messages.data.ram_total)
                     chart_router_continues('disk_used', messages.data.disk_used)
@@ -1335,14 +1339,9 @@ onMounted(() => {
                         </div>
                     </div>
                     <div class="col-span-12 lg:col-span-6 xl:col-span-6">
-                        <Select v-model="selectedPort" :options="activePort" optionLabel="name" name="port" placeholder="Select Active Port" class="w-full" />
                         <div class="card mb-0 h-full">
-                            <h5 class="text-center">
-                                Network {{ selectedPort.name ?? '' }} <br>
-                                <Tag icon="pi pi-arrow-circle-up" severity="danger" :value="portUp + ' mbps'" v-tooltip="'Upload Speed'"></Tag> &nbsp;&nbsp;
-                                <Tag icon="pi pi-arrow-circle-down" severity="success" :value="portDown + ' mbps'" v-tooltip="'Download Speed'"></Tag>
-                            </h5>
-                            <div :ref="el => routerRef['port'] = el" class="h-[20rem]"></div>
+                            <h5 class="text-center">CPU Temperature</h5>
+                            <div :ref="el => routerRef['temp'] = el" class="h-[20rem]"></div>
                         </div>
                     </div>
                     <div class="col-span-12 lg:col-span-6 xl:col-span-6">
@@ -1369,6 +1368,18 @@ onMounted(() => {
                             <div :ref="el => routerRef['disk_total'] = el" class="h-[20rem]"></div>
                         </div>
                     </div> -->
+                    <div class="col-span-12 lg:col-span-12 xl:col-span-12">
+                        <div class="card mb-0 h-full text-center">
+                            <Select v-model="selectedPort" :options="activePort" optionLabel="name" name="port" placeholder="Select Active Port" class="w-6/12 mb-5" />
+                            <h5 class="text-center">
+                                <!-- Network {{ selectedPort.name ?? '' }} <br><br> -->
+                                 Current Network Traffic <br><br>
+                                <Tag icon="pi pi-arrow-circle-up" severity="danger" :value="portUp + ' mbps'" v-tooltip="'Upload Speed'"></Tag> &nbsp;&nbsp;
+                                <Tag icon="pi pi-arrow-circle-down" severity="success" :value="portDown + ' mbps'" v-tooltip="'Download Speed'"></Tag>
+                            </h5>
+                            <div :ref="el => routerRef['port'] = el" class="h-[20rem]"></div>
+                        </div>
+                    </div>
                 </div>
             </Panel>
 

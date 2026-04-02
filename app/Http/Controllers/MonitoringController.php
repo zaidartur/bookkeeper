@@ -166,6 +166,7 @@ class MonitoringController extends Controller
                             'uptime'    => $this->parseUptime($details['uptime']),
                             // 'cpu'       => ['result' => $details['cpu']->json('result'), 'units' => $details['cpu']->json('view.units')],
                             'cpu'       => $this->parseCpuRouter($details['cpu']),
+                            'cpu_temp'  => $this->parseDynamicRouter($details['cpu_temp']),
                             'ram_used'  => $this->parseDynamicRouter($details['ram_used']),
                             'ram_total' => $this->parseDynamicRouter($details['ram_total']),
                             'disk_used' => $this->parseDynamicRouter($details['disk_used']),
@@ -223,6 +224,7 @@ class MonitoringController extends Controller
         $response = Http::pool(fn ($pool) => [
             $pool->as('uptime')->timeout(3)->get("{$detail}/data", ['nodes' => $host, 'contexts' => 'snmp.device_prof_systemUptime', 'points' => ($init ? 0 : 1), 'after' => -60]),
             $pool->as('cpu')->timeout(3)->get("{$detail}/data", ['nodes' => $host, 'contexts' => 'snmp.device_prof_cpu_usage', 'points' => ($init ? 0 : 1), 'after' => -60]),
+            $pool->as('cpu_temp')->timeout(3)->get("{$detail}/data", ['nodes' => $host, 'contexts' => 'snmp.device_prof_mtxrHlProcessorTemperature', 'points' => ($init ? 0 : 1), 'after' => -60]),
             $pool->as('ram_used')->timeout(3)->get("{$detail}/data", ['nodes' => $host, 'contexts' => 'snmp.device_prof_hrStorageUsed_ram', 'points' => ($init ? 0 : 1), 'after' => -60]),
             $pool->as('ram_total')->timeout(3)->get("{$detail}/data", ['nodes' => $host, 'contexts' => 'snmp.device_prof_hrStorageSize_ram', 'points' => ($init ? 0 : 1), 'after' => -60]),
             $pool->as('disk_used')->timeout(3)->get("{$detail}/data", ['nodes' => $host, 'contexts' => 'snmp.device_prof_hrStorageUsed_fixed_disk', 'points' => ($init ? 0 : 1), 'after' => -60]),
