@@ -48,6 +48,12 @@ const initFilters = () => {
     };
 }
 
+const dataSystemd = ref()
+const dailyUp = ref('0 bit')
+const dailyDown = ref('0 bit')
+const monthUp = ref('0 bit')
+const monthDown = ref('0 bit')
+
 // router & charts
 const setRamRouter = ref(0)
 const selectedPort = ref()
@@ -325,11 +331,18 @@ const get_detail = (dt, type) => {
                     chartInitData('net_in', messages.data.network)
                     chartInitData('net_out', messages.data.network)
 
+                    dataSystemd.value = messages.data.proccess.original.processes
+
                     initCpuDetailCharts()
                     updateCpuDetails(messages.data.cpu, 'init')
                 } else if (type === 'router') {
                     setRamRouter.value = messages.data.ram_total.value
-                    dataEther.value = messages.data.ports
+                    // dataEther.value = messages.data.ports
+                    dataEther.value  = [...messages.data.ports].sort((a, b) => {
+                        const upA = a.status === 'up' ? 0 : 1
+                        const upB = b.status === 'ip' ? 0 : 1
+                        return upA - upB
+                    })
                     // activePort.value = messages.data.ports.filter(port => port.status === 'up')
                     activePort.value = messages.data.ports.filter(port => port.status === 'up').map(item => ({name: item.name.replaceAll('_', ' '), value: item.name}))
                     totalDrops.value = messages.data.ports.reduce((total, port) => {
@@ -348,6 +361,11 @@ const get_detail = (dt, type) => {
                     chartInitRouterData('disk_used', messages.data.disk_used)
                     chartInitRouterData('disk_total', messages.data.disk_total)
                     chartInitRouterData('port', messages.data.ports.filter(port => port.name === selectedPort.value.value)[0])
+
+                    dailyUp.value = formatBitsAuto(messages.data.volume.out)
+                    dailyDown.value = formatBitsAuto(messages.data.volume.in)
+                    monthUp.value = formatBitsAuto(messages.data.monthly.out)
+                    monthDown.value = formatBitsAuto(messages.data.monthly.in)
                 }
 
                 detailDialog.value = true
@@ -515,11 +533,18 @@ const get_continues = () => {
                     chart_continues('net_in', messages.data.network)
                     chart_continues('net_out', messages.data.network)
 
+                    dataSystemd.value = messages.data.proccess.original.processes
+
                     initCpuDetailCharts()
                     updateCpuDetails(messages.data.cpu, 'loop')
                 } else if (setHostType.value === 'router') {
                     setRamRouter.value = messages.data.ram_total.value
-                    dataEther.value = messages.data.ports
+                    // dataEther.value = messages.data.ports
+                    dataEther.value  = [...messages.data.ports].sort((a, b) => {
+                        const upA = a.status === 'up' ? 0 : 1
+                        const upB = b.status === 'ip' ? 0 : 1
+                        return upA - upB
+                    })
                     activePort.value = messages.data.ports.filter(port => port.status === 'up').map(item => ({name: item.name.replaceAll('_', ' '), value: item.name}))
                     totalDrops.value = messages.data.ports.reduce((total, port) => {
                         return total + (port.drops || 0)
@@ -533,6 +558,11 @@ const get_continues = () => {
                     chart_router_continues('disk_used', messages.data.disk_used)
                     chart_router_continues('disk_total', messages.data.disk_total)
                     chart_router_continues('port', messages.data.ports.filter(port => port.name === selectedPort.value.value)[0])
+
+                    dailyUp.value = formatBitsAuto(messages.data.volume.out)
+                    dailyDown.value = formatBitsAuto(messages.data.volume.in)
+                    monthUp.value = formatBitsAuto(messages.data.monthly.out)
+                    monthDown.value = formatBitsAuto(messages.data.monthly.in)
                 }
             } else {
                 toast.add({ severity: 'error', summary: 'Peringatan', detail: messages.message, life: 3000 });
@@ -618,7 +648,7 @@ const formatBitsAuto = (bits, decimals = 2) => {
     const k = 1000;
     const dm = decimals < 0 ? 0 : decimals;
     // Satuan dalam bit (b, kb, Mb, Gb, Tb, Pb)
-    const sizes = ['bps', 'kbps', 'Mbps', 'Gbps', 'Tbps', 'Pbps'];
+    const sizes = ['b', 'Kb', 'Mb', 'Gb', 'Tb', 'Pb'];
     
     const i = Math.floor(Math.log(bits) / Math.log(k));
     const index = Math.min(i, sizes.length - 1);
@@ -640,7 +670,27 @@ const formatUptime = (seconds) => {
     if (parts.length === 0 || sec > 0) parts.push(`${sec}s`);
 
     return parts.join(' ');
-};
+}
+
+const formatNetdataStyle = (valueMiB) => {
+    // Jika kosong atau 0, langsung tampilkan 0 B
+    if (!valueMiB || valueMiB === 0) return '0 B';
+
+    // LANGKAH 1: Paksa turunkan nilai dari MiB menjadi murni Bytes (B)
+    const bytes = valueMiB * 1024 * 1024;
+
+    // LANGKAH 2: Tangkap angka yang sangat kecil (Langsung tampilkan Byte)
+    if (bytes < 1024) {
+        return bytes.toFixed(2) + ' B'; 
+    }
+
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
 
 const chart_continues = (key, data) => {
     if (data && data !== undefined) {
@@ -751,70 +801,16 @@ const chart_router_continues = (key, data) => {
     }
 }
 
-const cpu_continues = (key, datas) => {
-    const keyTime = Object.keys(datas.labels).find(key => datas.labels[key] === "time")
-    // const keyCpu  = Object.keys(datas.labels).find(key => datas.labels[key] === "system")
-    let keyVal = null
+const changePort = () => {
+    const store = routerDataStore.value['port']
+    store.labels = []
+    store.values[0] = []
+    store.values[1] = []
 
-    if (key === 'load') {
-        keyVal = Object.keys(datas.labels).find(k => datas.labels[k] === "load1");
-    }
-    if (key === 'cpu') {
-        keyVal = Object.keys(datas.labels).find(k => datas.labels[k] === "system");
-    }
-    if (key === 'mem_use') {
-        keyVal = Object.keys(datas.labels).find(k => datas.labels[k] === "used");
-    }
-    if (key === 'mem_ava') {
-        keyVal = Object.keys(datas.labels).find(k => datas.labels[k] === "free");
-    }
-    if (key === 'disk_r') {
-        keyVal = Object.keys(datas.labels).find(k => datas.labels[k] === "reads");
-    }
-    if (key === 'disk_w') {
-        keyVal = Object.keys(datas.labels).find(k => datas.labels[k] === "writes");
-    }
-    if (key === 'net_in') {
-        keyVal = Object.keys(datas.labels).find(k => datas.labels[k] === "received");
-    }
-    if (key === 'net_out') {
-        keyVal = Object.keys(datas.labels).find(k => datas.labels[k] === "sent");
-    }
-
-    const data = datas.data
-    if (data && data.length > 0) {
-        // console.log('interval chart')
-        const setDate = moment(new Date(datas.data[0][keyTime] * 1000)).format('HH:mm:ss')
-        let setValue  = null
-        if (key === 'cpu') {
-            const total = Math.abs(datas.data[0].reduce((accumulator, currentValue) => accumulator + currentValue, 0))
-            setValue = total - datas.data[0][0]
-        } else if (key === 'mem_ava') {
-            const free  = Math.abs(datas.data[0][keyVal])
-            const cache = Math.abs(datas.data[0][Object.keys(datas.labels).find(k => datas.labels[k] === "cached")])
-            const buffer= Math.abs(datas.data[0][Object.keys(datas.labels).find(k => datas.labels[k] === "buffers")])
-
-            setValue = Math.abs(free + cache + buffer) * 1024 * 1024
-        } else if (key === 'mem_use') {
-            setValue = Math.abs(datas.data[0][keyVal]) * 1024 *1024
-        } else {
-            setValue = Math.abs(datas.data[0][keyVal])
-        }
-
-        const store = chartDataStore.value[key]
-        store.labels.push(setDate)
-        store.values.push(setValue)
-
-        if (store.labels.length > 20) {
-            store.labels.shift()
-            store.values.shift()
-        }
-
-        chartInstance.value[key]?.setOption({
-            xAxis: { data: store.labels },
-            series: [{ data: store.values }]
-        })
-    }
+    routerInstance.value['port']?.setOption({
+        xAxis: { data: store.labels },
+        series: [{ data: store.values[0] }, { data: store.values[1] }]
+    })
 }
 
 const alert_response = (rsp) => {
@@ -1091,7 +1087,7 @@ onMounted(() => {
         </template>
     </Card>
 
-    <Dialog v-model:visible="detailDialog" maximizable modal :header="`Detail ${setHostType === 'router' ? 'router/switch' : setHostType}`" :style="{width: '90rem'}" :breakpoints="{ '1199px': '75vw', '575px': '90vw' }">
+    <Dialog v-model:visible="detailDialog" maximizable modal :header="`Detail ${setHostType === 'router' ? 'router/switch' : setHostType} [${setHostname}]`" :style="{width: '90rem'}" :breakpoints="{ '1199px': '75vw', '575px': '90vw' }">
 
         <Panel header="Server Summary" class="mb-5" toggleable>
             <div class="grid grid-cols-12 gap-8">
@@ -1257,6 +1253,38 @@ onMounted(() => {
                         </div>
                     </div>
                 </div>
+                <div class="col-span-6 lg:col-span-6 xl:col-span-3" v-if="setHostType === 'router'">
+                    <div class="card mb-0 border h-full">
+                        <div class="flex justify-between mb-4">
+                            <div>
+                                <span class="block text-muted-color font-medium mb-4">Volume Hari Ini</span>
+                                <div class="text-surface-900 dark:text-surface-0 font-medium text-xl">
+                                    <i class="pi pi-arrow-circle-up text-red-500 !text-xl"></i> &nbsp;
+                                    {{ dailyUp }}
+                                    &nbsp;&nbsp;<br>
+                                    <i class="pi pi-arrow-circle-down text-green-500 !text-xl"></i> &nbsp;
+                                    {{ dailyDown }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-span-6 lg:col-span-6 xl:col-span-3" v-if="setHostType === 'router'">
+                    <div class="card mb-0 border h-full">
+                        <div class="flex justify-between mb-4">
+                            <div>
+                                <span class="block text-muted-color font-medium mb-4">Volume Bulan Ini</span>
+                                <div class="text-surface-900 dark:text-surface-0 font-medium text-xl">
+                                    <i class="pi pi-arrow-circle-up text-red-500 !text-xl"></i> &nbsp;
+                                    {{ monthUp }}
+                                    &nbsp;&nbsp; <br>
+                                    <i class="pi pi-arrow-circle-down text-green-500 !text-xl"></i> &nbsp;
+                                    {{ monthDown }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </Panel>
 
@@ -1328,6 +1356,77 @@ onMounted(() => {
                     </div>
                 </div>
             </Panel>
+
+            <Card>
+                <template #content>
+                    <DataTable v-model:filters="filters" v-model:first="firstEther" :value="dataSystemd" paginator showGridlines :rows="15" :rowsPerPageOptions="[5, 10, 15, 20, 50]" tableStyle="min-width: 50rem" :loading="loading">
+                        <template #header>
+                            <div class="flex justify-between">
+                                <div class="flex flex-wrap gap-4">
+                                    <h4>
+                                        Top 15 Systemd Services <br>
+                                    </h4>
+                                </div>
+                                <IconField>
+                                    <InputIcon>
+                                        <i class="pi pi-search" />
+                                    </InputIcon>
+                                    <InputText v-model="filters['global'].value" placeholder="Pencarian" />
+                                </IconField>
+                            </div>
+                        </template>
+                        <template #empty><div class="w-full text-center">Tidak ada data.</div></template>
+                        <template #loading><div class="w-full text-center">Memproses data. Harap menunggu.</div> </template>
+                        <Column field="" header="#" style="width: 5%">
+                            <template #body="{ index }">
+                                <label>{{ firstEther + index + 1 }}</label>
+                            </template>
+                        </Column>
+                        <Column field="" header="Name" style="width: 20%">
+                            <template #body="slotProps">
+                                {{ slotProps.data.nama }}
+                            </template>
+                        </Column>
+                        <Column field="" header="PIDs" style="width: 15%">
+                            <template #body="slotProps">
+                                {{ slotProps.data.pid }}
+                            </template>
+                        </Column>
+                        <Column field="" header="CPU" style="width: 15%">
+                            <template #body="slotProps">
+                                {{ slotProps.data.cpu }}%
+                            </template>
+                        </Column>
+                        <Column field="" header="RAM" style="width: 15%">
+                            <template #body="slotProps">
+                                <!-- {{ formatNetdataStyle(slotProps.data.ram) }} -->
+                                  {{ slotProps.data.ram }}
+                            </template>
+                        </Column>
+                        <Column field="" header="Reads" style="width: 15%">
+                            <template #body="slotProps">
+                                {{ formatNetdataStyle(slotProps.data.read) }}
+                            </template>
+                        </Column>
+                        <Column field="" header="Writes" style="width: 15%">
+                            <template #body="slotProps">
+                                {{ formatNetdataStyle(slotProps.data.write) }}
+                            </template>
+                        </Column>
+
+                        <template #paginatorcontainer="{ first, last, page, pageCount, prevPageCallback, nextPageCallback, totalRecords }">
+                            <div class="flex items-center gap-4 border border-primary bg-transparent rounded-full w-full py-1 px-2 justify-between">
+                                <Button icon="pi pi-chevron-left" rounded text @click="prevPageCallback" :disabled="page === 0" />
+                                <div class="text-color font-medium">
+                                    <span class="hidden sm:block">Showing {{ first }} to {{ last }} of {{ totalRecords }}</span>
+                                    <span class="block sm:hidden">Page {{ page + 1 }} of {{ pageCount }}</span>
+                                </div>
+                                <Button icon="pi pi-chevron-right" rounded text @click="nextPageCallback" :disabled="page === pageCount - 1" />
+                            </div>
+                        </template>
+                    </DataTable>
+                </template>
+            </Card>
         </div>
         <div v-else-if="setHostType == 'router'">
             <Panel header="Real-time Performance" class="mb-5" toggleable :key="`is-router-${setHostname.replaceAll(' ', '-')}`">
@@ -1350,27 +1449,15 @@ onMounted(() => {
                             <div :ref="el => routerRef['ram_used'] = el" class="h-[20rem]"></div>
                         </div>
                     </div>
-                    <!-- <div class="col-span-12 lg:col-span-6 xl:col-span-6">
-                        <div class="card mb-0 h-full">
-                            <h5 class="text-center">Memory Total</h5>
-                            <div :ref="el => routerRef['ram_total'] = el" class="h-[20rem]"></div>
-                        </div>
-                    </div> -->
                     <div class="col-span-12 lg:col-span-6 xl:col-span-6">
                         <div class="card mb-0 h-full">
                             <h5 class="text-center">Disk Used</h5>
                             <div :ref="el => routerRef['disk_used'] = el" class="h-[20rem]"></div>
                         </div>
                     </div>
-                    <!-- <div class="col-span-12 lg:col-span-6 xl:col-span-6">
-                        <div class="card mb-0 h-full">
-                            <h5 class="text-center">Disk Total</h5>
-                            <div :ref="el => routerRef['disk_total'] = el" class="h-[20rem]"></div>
-                        </div>
-                    </div> -->
                     <div class="col-span-12 lg:col-span-12 xl:col-span-12">
                         <div class="card mb-0 h-full text-center">
-                            <Select v-model="selectedPort" :options="activePort" optionLabel="name" name="port" placeholder="Select Active Port" class="w-6/12 mb-5" />
+                            <Select v-model="selectedPort" :options="activePort" optionLabel="name" name="port" placeholder="Select Active Port" class="w-6/12 mb-5" @change="changePort" />
                             <h5 class="text-center">
                                 <!-- Network {{ selectedPort.name ?? '' }} <br><br> -->
                                  Current Network Traffic <br><br>

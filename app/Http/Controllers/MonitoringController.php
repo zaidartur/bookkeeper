@@ -119,6 +119,7 @@ class MonitoringController extends Controller
                             'memory'    => $this->parseServerRam($details['memory'], $init),
                             'disk'      => $this->parseServerDisk($details['disk'], $init),
                             'network'   => $this->parseServerNetwork($details['network'], $init),
+                            'proccess'  => $this->getSystemdProcesses($details['systemd']),
                             'alarm'     => $details['alarms']->json(),
                         ],
                     ];
@@ -157,7 +158,6 @@ class MonitoringController extends Controller
                     $details = $this->load_detail_router($host, $init);
                     $traffic = $this->parseLiveInterfaces($details['interface']);
                     // Log::info('traffic', $details['interface']->json());
-                    Log::alert('iface', [$traffic]);
 
                     $res = [
                         'status'    => 'success',
@@ -173,6 +173,7 @@ class MonitoringController extends Controller
                             'disk_total'=> $this->parseDynamicRouter($details['disk_total']),
                             'port_speed'=> $this->parseNetworkRouter($details['port_speed']),
                             'volume'    => $this->parseNetworkRouter($details['volume_daily']),
+                            'monthly'   => $this->parseNetworkRouter($details['volume_monthly']),
                             'ports'     => $this->parseLiveInterfaces($details['interface']),
                         ],
                     ];
@@ -207,6 +208,7 @@ class MonitoringController extends Controller
             $pool->as('disk')->timeout(3)->get("{$detail}/data", ['nodes' => $host, 'contexts' => 'system.io', 'points' => ($init ? 0 : 1), 'after' => -10]),
             $pool->as('network')->timeout(3)->get("{$detail}/data", ['nodes' => $host, 'contexts' => 'system.ip', 'points' => ($init ? 0 : 1), 'after' => -10]),
             $pool->as('alarms')->timeout(3)->get("{$detail}/alerts", ['status' => 'RAISED', 'vnode' => $host]),
+            $pool->as('systemd')->timeout(5)->get("{$this->baseUrl}/host/{$host}/api/v3/function", ['function' => 'systemd-services', 'timeout' => 120000, 'last' => 200]),
         ]);
 
         // $res = $response->json();
@@ -234,7 +236,6 @@ class MonitoringController extends Controller
             $pool->as('volume_daily')->timeout(5)->get("{$detail}/data", ['nodes' => $host, 'contexts' => 'net.*,snmp.device_prof_ifTraffic', 'points' => 1, 'after' => $startDay, 'group' => 'sum']),
             $pool->as('volume_monthly')->timeout(10)->get("{$detail}/data", ['nodes' => $host, 'contexts' => 'net.*,snmp.device_prof_ifTraffic', 'points' => 1, 'after' => $startMonth, 'group' => 'sum']),
             $pool->as('interface')->timeout(5)->get($v1, ['format' => 'json']),
-            // $pool->as('interface')->timeout(3)->get("{$detail}/data", ['nodes' => $host, 'contexts' => 'snmp.device_prof_ifTraffic*', 'points' => 1, 'after' => -60, 'grouped_by' => 'interface,dimension']),
             // $pool->as('alarms')->timeout(3)->get("{$detail}/alerts", ['status' => 'RAISED', 'vnode' => $host]),
         ]);
 
@@ -350,7 +351,6 @@ class MonitoringController extends Controller
 
             $time = $loadData['time'];
             $load = $loadData['load1'];
-            Log::info('load', [$loadData]);
         } else {
             $labels = $response->json('result.labels') ?? [];
             foreach ($labels as $index => $label) {
@@ -656,6 +656,111 @@ class MonitoringController extends Controller
     //================================================ ROUTER ================================================//
 
     // ethernet interface
+    // private function parseLiveInterfaces($response)
+    // {
+    //     if (!$response->ok()) return [];
+    //     $metrics = $response->json() ?? [];
+    //     $interfaces = [];
+
+    //     // ---------------------------------------------------------
+    //     // LOOP 1: Ambil Status Port (UP/DOWN) TERLEBIH DAHULU
+    //     // Kita butuh statusnya dulu untuk membersihkan 'Ghost Traffic' nanti
+    //     // ---------------------------------------------------------
+    //     foreach ($metrics as $chartId => $data) {
+    //         $portName = null;
+    //         $isUp = true;
+
+    //         if (str_starts_with($chartId, 'net_operstatus.')) {
+    //             $portName = substr($chartId, 15);
+    //             $val = current($data['dimensions'])['value'] ?? 1;
+    //             $isUp = ($val == 1);
+    //         } elseif (stripos($chartId, 'ifOperStatus_') !== false) {
+    //             $parts = explode('ifOperStatus_', $chartId);
+    //             if (count($parts) > 1) {
+    //                 $portName = trim($parts[1], '_');
+    //                 $val = current($data['dimensions'])['value'] ?? 1;
+    //                 $isUp = ($val == 1);
+    //             }
+    //         }
+
+    //         if ($portName) {
+    //             $cleanName = preg_replace('/(\d)_(\d)/', '$1/$2', $portName);
+    //             if (!isset($interfaces[$cleanName])) {
+    //                 $interfaces[$cleanName] = ['name' => $cleanName, 'in_mbps' => 0, 'out_mbps' => 0, 'status' => 'down', 'drops' => 0, 'units' => $data['units'] ?? ''];
+    //             }
+    //             $interfaces[$cleanName]['status'] = $isUp ? 'up' : 'down';
+    //         }
+    //     }
+
+    //     // ---------------------------------------------------------
+    //     // LOOP 2: Ambil Kecepatan Trafik & Konversi Satuan Dinamis
+    //     // ---------------------------------------------------------
+    //     foreach ($metrics as $chartId => $data) {
+    //         $portName = null;
+
+    //         if (str_starts_with($chartId, 'net.') && !str_starts_with($chartId, 'net.drops') && !str_starts_with($chartId, 'net.operstatus')) {
+    //             $portName = substr($chartId, 4); 
+    //         } elseif (stripos($chartId, 'ifTraffic_') !== false) {
+    //             $parts = explode('ifTraffic_', $chartId);
+    //             if (count($parts) > 1) {
+    //                 $portName = trim($parts[1], '_');
+    //             }
+    //         }
+
+    //         if ($portName) {
+    //             $cleanName = preg_replace('/(\d)_(\d)/', '$1/$2', $portName);
+                
+    //             // Pastikan wadah arraynya ada
+    //             if (!isset($interfaces[$cleanName])) {
+    //                 $interfaces[$cleanName] = ['name' => $cleanName, 'in_mbps' => 0, 'out_mbps' => 0, 'status' => 'up', 'drops' => 0, 'units' => $data['units'] ?? ''];
+    //             }
+
+    //             // ==========================================
+    //             // FITUR PINTAR: DETEKSI SATUAN OTOMATIS
+    //             // ==========================================
+    //             $unit = strtolower($data['units'] ?? '');
+    //             $divisor = 1000; // Default: Asumsi kilobits/s ke Mbps
+                
+    //             // if (strpos($unit, 'kilobit') !== false || $unit === 'kbps') {
+    //             //     $divisor = 1000;
+    //             // } elseif (strpos($unit, 'bit') !== false && strpos($unit, 'mega') === false) {
+    //             //     $divisor = 1000000; // Jika murni 'bits/s' (SNMP), bagi 1 juta
+    //             // } elseif (strpos($unit, 'megabit') !== false || $unit === 'mbps') {
+    //             //     $divisor = 1; // Sudah Mbps, tidak perlu dibagi
+    //             // } elseif (strpos($unit, 'byte') !== false || $unit === 'b/s') {
+    //             //     $divisor = 125000; // Rumus: (Bytes * 8) / 1.000.000
+    //             // } elseif (strpos($unit, 'kilobyte') !== false || $unit === 'kb/s') {
+    //             //     $divisor = 125; // Rumus: (Kilobytes * 8) / 1.000
+    //             // }
+
+    //             if (str_starts_with($chartId, 'net.')) {
+    //                 // Plugin bawaan (MikroTik/Server lokal) selalu Kilobits
+    //                 $divisor = 1000;
+    //             } elseif (stripos($chartId, 'ifTraffic_') !== false) {
+    //                 // Plugin SNMP (Ruijie) memuntahkan murni Bits
+    //                 $divisor = 1000000; 
+    //             }
+
+    //             $in = abs($data['dimensions']['in']['value'] ?? 0);
+    //             $out = abs($data['dimensions']['out']['value'] ?? 0);
+
+    //             // ==========================================
+    //             // FITUR PINTAR: ZEROING DOWN PORTS
+    //             // ==========================================
+    //             // Jika port mati, paksa trafik menjadi 0 (Hapus Ghost Traffic)
+    //             if ($interfaces[$cleanName]['status'] === 'down') {
+    //                 $interfaces[$cleanName]['in_mbps'] = 0;
+    //                 $interfaces[$cleanName]['out_mbps'] = 0;
+    //             } else {
+    //                 // Jika port hidup, hitung normal sesuai deteksi satuan
+    //                 $interfaces[$cleanName]['in_mbps'] = round($in / $divisor, 2);
+    //                 $interfaces[$cleanName]['out_mbps'] = round($out / $divisor, 2);
+    //             }
+    //         }
+    //     }
+
+    //     return array_values($interfaces);
+    // }
     private function parseLiveInterfaces($response)
     {
         if (!$response->ok()) return [];
@@ -664,30 +769,49 @@ class MonitoringController extends Controller
 
         // ---------------------------------------------------------
         // LOOP 1: Ambil Status Port (UP/DOWN) TERLEBIH DAHULU
-        // Kita butuh statusnya dulu untuk membersihkan 'Ghost Traffic' nanti
+        // *REVISI: Ditambahkan Toleransi Status Mikrotik (Unknown/Dormant)*
         // ---------------------------------------------------------
         foreach ($metrics as $chartId => $data) {
             $portName = null;
-            $isUp = true;
+            $isUp = false; // Default kita anggap mati dulu untuk keamanan
 
             if (str_starts_with($chartId, 'net_operstatus.')) {
                 $portName = substr($chartId, 15);
-                $val = current($data['dimensions'])['value'] ?? 1;
-                $isUp = ($val == 1);
             } elseif (stripos($chartId, 'ifOperStatus_') !== false) {
                 $parts = explode('ifOperStatus_', $chartId);
                 if (count($parts) > 1) {
                     $portName = trim($parts[1], '_');
-                    $val = current($data['dimensions'])['value'] ?? 1;
-                    $isUp = ($val == 1);
                 }
             }
 
             if ($portName) {
+                $dimensions = $data['dimensions'] ?? [];
+                
+                // SKENARIO A: Netdata memecah status jadi label array (up, down, unknown)
+                // Ini biasanya terjadi jika menggunakan agen Netdata Linux/Modern
+                if (isset($dimensions['up']) || isset($dimensions['down'])) {
+                    // Cek label mana yang sedang bernilai 1 (>0)
+                    $stateUp      = ($dimensions['up']['value'] ?? 0) > 0;
+                    $stateUnknown = ($dimensions['unknown']['value'] ?? 0) > 0; // Toleransi Bridge/VLAN Mikrotik
+                    $stateDormant = ($dimensions['dormant']['value'] ?? 0) > 0; // Toleransi STP/LACP
+                    
+                    // Port dianggap UP jika salah satu dari state di atas aktif
+                    $isUp = ($stateUp || $stateUnknown || $stateDormant);
+                } 
+                // SKENARIO B: Netdata mengirim 1 angka mentah standar SNMP (1=Up, 2=Down, 4=Unknown, 5=Dormant)
+                // Ini biasanya terjadi jika menarik data murni via SNMP Mikrotik
+                else {
+                    $val = current($dimensions)['value'] ?? 2; // Jika tidak ada data, asumsikan 2 (Down)
+                    // Kita izinkan angka 1, 4, dan 5 sebagai status UP
+                    $isUp = in_array((int)$val, [1, 4, 5]); 
+                }
+
                 $cleanName = preg_replace('/(\d)_(\d)/', '$1/$2', $portName);
+                
                 if (!isset($interfaces[$cleanName])) {
                     $interfaces[$cleanName] = ['name' => $cleanName, 'in_mbps' => 0, 'out_mbps' => 0, 'status' => 'down', 'drops' => 0, 'units' => $data['units'] ?? ''];
                 }
+                
                 $interfaces[$cleanName]['status'] = $isUp ? 'up' : 'down';
             }
         }
@@ -715,49 +839,32 @@ class MonitoringController extends Controller
                     $interfaces[$cleanName] = ['name' => $cleanName, 'in_mbps' => 0, 'out_mbps' => 0, 'status' => 'up', 'drops' => 0, 'units' => $data['units'] ?? ''];
                 }
 
-                // ==========================================
-                // FITUR PINTAR: DETEKSI SATUAN OTOMATIS
-                // ==========================================
-                $unit = strtolower($data['units'] ?? '');
-                $divisor = 1000; // Default: Asumsi kilobits/s ke Mbps
-                
-                // if (strpos($unit, 'kilobit') !== false || $unit === 'kbps') {
-                //     $divisor = 1000;
-                // } elseif (strpos($unit, 'bit') !== false && strpos($unit, 'mega') === false) {
-                //     $divisor = 1000000; // Jika murni 'bits/s' (SNMP), bagi 1 juta
-                // } elseif (strpos($unit, 'megabit') !== false || $unit === 'mbps') {
-                //     $divisor = 1; // Sudah Mbps, tidak perlu dibagi
-                // } elseif (strpos($unit, 'byte') !== false || $unit === 'b/s') {
-                //     $divisor = 125000; // Rumus: (Bytes * 8) / 1.000.000
-                // } elseif (strpos($unit, 'kilobyte') !== false || $unit === 'kb/s') {
-                //     $divisor = 125; // Rumus: (Kilobytes * 8) / 1.000
-                // }
-
+                // Deteksi Satuan
+                $divisor = 1000; // Default Kilobits
                 if (str_starts_with($chartId, 'net.')) {
-                    // Plugin bawaan (MikroTik/Server lokal) selalu Kilobits
                     $divisor = 1000;
                 } elseif (stripos($chartId, 'ifTraffic_') !== false) {
-                    // Plugin SNMP (Ruijie) memuntahkan murni Bits
                     $divisor = 1000000; 
                 }
 
                 $in = abs($data['dimensions']['in']['value'] ?? 0);
                 $out = abs($data['dimensions']['out']['value'] ?? 0);
 
-                // ==========================================
-                // FITUR PINTAR: ZEROING DOWN PORTS
-                // ==========================================
-                // Jika port mati, paksa trafik menjadi 0 (Hapus Ghost Traffic)
+                // Zeroing Ghost Traffic jika port mati
                 if ($interfaces[$cleanName]['status'] === 'down') {
                     $interfaces[$cleanName]['in_mbps'] = 0;
                     $interfaces[$cleanName]['out_mbps'] = 0;
                 } else {
-                    // Jika port hidup, hitung normal sesuai deteksi satuan
                     $interfaces[$cleanName]['in_mbps'] = round($in / $divisor, 2);
                     $interfaces[$cleanName]['out_mbps'] = round($out / $divisor, 2);
                 }
             }
         }
+
+        // ---------------------------------------------------------
+        // LOOP 3: (Opsional) Menggabungkan Drops jika diperlukan
+        // ---------------------------------------------------------
+        // ... (Biarkan kode drops Anda yang sudah ada jika ada)
 
         return array_values($interfaces);
     }
@@ -816,7 +923,6 @@ class MonitoringController extends Controller
                 // $rawData[$label] = abs($dataRow[$index][0] ?? 0);
                 $clean = Str::after($context[0]['id'], 'snmp.device_prof_');
                 if ($label == $clean) {
-                    Log::info('exists');
                     $rawData['value'] = abs($dataRow[$index][0] ?? 0);
                 }
             }
@@ -866,43 +972,49 @@ class MonitoringController extends Controller
         ];
     }
 
-    public function getMonthlyBandwidthVolume($hostname, $interface = 'net.ether1')
+    public function getSystemdProcesses($json)
     {
-        // 1. Tentukan rentang waktu (Misal: 30 Hari Terakhir)
-        // 2592000 detik = 30 Hari
-        $timeRange = 2592000; 
+        // ... (Kode pemanggilan HTTP Get ke Netdata API v3 milik Anda) ...
+        // Anggaplah hasil response json() disimpan di variabel $json
 
-        // 2. Tembak API v3 Netdata
-        // Kita gunakan group=sum untuk menjumlahkan seluruh data dalam rentang waktu tersebut
-        $baseUrl = "{$this->baseUrl}/host/{$hostname}/api/v3";
-        $response = Http::timeout(5)->get("{$baseUrl}/data", [
-            'contexts' => $interface,
-            'after'    => -$timeRange, // Tarik dari 30 hari lalu
-            'group'    => 'sum',       // JUMLAHKAN semua titik data
-            'points'   => 1            // Jadikan 1 angka raksasa
-        ]);
+        $rows = $json['data'] ?? [];
+        $columns = $json['columns'] ?? [];
 
-        if ($response->ok() && !empty($response->json('result.data'))) {
-            // Data biasanya dalam format Kilobit, kita ubah ke Gigabyte (GB)
-            $dataRow = $response->json('result.data')[0] ?? [];
-            
-            // Perhatikan index datanya (tergantung respons netdata, biasanya index 1=in, 2=out)
-            $inKilobits = abs($dataRow[1][0] ?? 0);
-            $outKilobits = abs($dataRow[2][0] ?? 0);
+        // Ambil indeks dinamis berdasarkan definisi kolom Netdata
+        // Ini menjaga kode Anda tetap aman meskipun Netdata mengubah urutan kolom di update berikutnya
+        $idxName  = $columns['Name']['index'] ?? 0;
+        $idxPid   = $columns['PIDs']['index'] ?? 1;
+        $idxCpu   = $columns['CPU']['index'] ?? 2;
+        $idxRam   = $columns['RAM']['index'] ?? 3;
+        $idxRead  = $columns['Reads']['index'] ?? 4;
+        $idxWrite = $columns['Writes']['index'] ?? 5;
 
-            // Konversi Kilobit ke Gigabyte (Rumus: Kb / 8 / 1024 / 1024)
-            $inGB = round($inKilobits / 8388608, 2);
-            $outGB = round($outKilobits / 8388608, 2);
+        $processes = [];
 
-            return response()->json([
-                'interface' => $interface,
-                'period' => '30 Hari Terakhir',
-                'total_in_gb' => $inGB,
-                'total_out_gb' => $outGB,
-                'total_combined_gb' => $inGB + $outGB
-            ]);
+        foreach ($rows as $row) {
+            $cpuValue = (float)($row[$idxCpu] ?? 0);
+            $ramValue = (float)($row[$idxRam] ?? 0); // null akan otomatis menjadi 0
+
+            // Filter NOC: Tampilkan layanan yang memang sedang berjalan (punya PID) 
+            // atau sedang memakan CPU/RAM
+            if (($row[$idxPid] > 0) || $cpuValue > 0 || $ramValue > 0) {
+                $processes[] = [
+                    'nama'  => $row[$idxName] ?? 'Unknown',
+                    'pid'   => (int)($row[$idxPid] ?? 0),
+                    'cpu'   => round($cpuValue, 2),
+                    'ram'   => round($ramValue, 2),
+                    'read'  => round((float)($row[$idxRead] ?? 0), 2),
+                    'write' => round((float)($row[$idxWrite] ?? 0), 2),
+                ];
+            }
         }
 
-        return response()->json(['error' => 'Data tidak tersedia'], 404);
+        // Urutkan berdasarkan CPU tertinggi
+        usort($processes, fn($a, $b) => $b['cpu'] <=> $a['cpu']);
+
+        return response()->json([
+            // Ambil 15 aplikasi teratas agar tabel di UI tidak terlalu panjang
+            'processes' => array_slice($processes, 0, 15) 
+        ]);
     }
 }
