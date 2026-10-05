@@ -20,49 +20,49 @@ class MonitoringController extends Controller
 
     public function __construct()
     {
-        // $this->baseUrl = 'http://127.0.0.1:19999';
-        $this->baseUrl = 'http://10.20.33.235:19999';
+        $this->baseUrl = env('NETDATA_URL', 'http://10.20.33.235:19999');
     }
 
     public function view_server()
     {
-        $list_device = "{$this->baseUrl}/api/v3/nodes";
         try {
-            $response    = Http::timeout(3)->get($list_device);
-            // Log::info("message", [$response]);
-            $res = $response->json();
-            $devices = [];
-            if ($res['nodes'] && count($res['nodes']) > 0) {
-                $i = 0;
-                foreach ($res['nodes'] as $key => $value) {
-                    $devices[$i] = [
-                        'hostname'  => $value['nm'],
-                        'uid'       => $value['mg'],
-                        'reachable' => $value['state'] == 'reachable' ? true : false,
-                        'ip'        => $value['labels']['_net_default_iface_ip'] ?? '',
-                    ];
+            $devices = Cache::remember('netdata_device_nodes', 30, function () {
+                $list_device = "{$this->baseUrl}/api/v3/nodes";
+                $response    = Http::timeout(3)->get($list_device);
+                $res         = $response->json();
+                $devices     = [];
 
-                    if (isset($value['labels']['_os']) && !empty($value['labels']['_os'])) {
-                        $devices[$i] += [
-                            'type'  => 'server',
-                            'label' => $value['os']['nm'] .' '. $value['os']['v'],
+                if (isset($res['nodes']) && is_array($res['nodes']) && count($res['nodes']) > 0) {
+                    $i = 0;
+                    foreach ($res['nodes'] as $value) {
+                        $devices[$i] = [
+                            'hostname'  => $value['nm'] ?? '',
+                            'uid'       => $value['mg'] ?? '',
+                            'reachable' => ($value['state'] ?? '') === 'reachable',
+                            'ip'        => $value['labels']['_net_default_iface_ip'] ?? '',
                         ];
-                    } else {
-                        $devices[$i] += [
-                            'type'  => 'router',
-                            'label' => $value['labels']['description'],
-                        ];
+
+                        if (!empty($value['labels']['_os'])) {
+                            $devices[$i] += [
+                                'type'  => 'server',
+                                'label' => trim(($value['os']['nm'] ?? '') . ' ' . ($value['os']['v'] ?? '')),
+                            ];
+                        } else {
+                            $devices[$i] += [
+                                'type'  => 'router',
+                                'label' => $value['labels']['description'] ?? 'Router',
+                            ];
+                        }
+
+                        $i++;
                     }
-
-                    $i++;
                 }
-            }
-            
-            $data = [
-                'devices'   => $devices,
-            ];
+                return $devices;
+            });
 
-            return Inertia::render('Server', $data);
+            return Inertia::render('Server', [
+                'devices' => $devices ?? [],
+            ]);
         } catch (\Exception $e) {
             return Inertia::render('Server', [
                 'devices' => [],

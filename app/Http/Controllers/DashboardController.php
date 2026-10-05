@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Imports\ImportTamu;
 use App\Models\BukuTamu;
 use App\Models\Inventory;
+use App\Models\NetworkMonitor;
 use App\Models\Trouble;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -21,28 +22,59 @@ class DashboardController extends Controller
 {
     public function index()
     {
+        $driver = DB::connection()->getDriverName();
+        $monthTrouble = match ($driver) {
+            'sqlite' => "strftime('%m', tgl_trouble)",
+            'pgsql'  => "to_char(tgl_trouble, 'MM')",
+            default  => "DATE_FORMAT(tgl_trouble, '%m')", // mysql, mariadb
+        };
+
+        $monthGuest = match ($driver) {
+            'sqlite' => "strftime('%m', tanggal)",
+            'pgsql'  => "to_char(tanggal, 'MM')",
+            default  => "DATE_FORMAT(tanggal, '%m')", // mysql, mariadb
+        };
+
+        // 1 Query untuk seluruh gangguan in-progress (menggantikan 4 kueri terpisah)
+        $activeTroubles = Trouble::where('status', 'progress')->get()->groupBy('kategori');
+
+        // 1 Query untuk rekapitulasi bulanan seluruh kategori (menggantikan 5 kueri terpisah)
+        $rawTroubleStats = Trouble::select(
+            DB::raw('count(id) as total'),
+            DB::raw("{$monthTrouble} AS bulan"),
+            DB::raw('MAX(kategori) as kategori')
+        )
+        ->whereYear('tgl_trouble', '<=', date('Y'))
+        ->groupBy('bulan', 'kategori')
+        ->orderBy('bulan')
+        ->get();
+
         $data = [
             'troubles'  => [
-                    'lokal' => Trouble::where('kategori', 'lokal')->where('status', 'progress')->get(),
-                    'intra' => Trouble::where('kategori', 'opd')->where('status', 'progress')->get(),
-                    'metro' => Trouble::where('kategori', 'metro')->where('status', 'progress')->get(),
-                    'internet' => Trouble::where('kategori', 'internet')->where('status', 'progress')->get(),
-                ],
+                'lokal'    => $activeTroubles->get('lokal', collect()),
+                'intra'    => $activeTroubles->get('opd', collect()),
+                'metro'    => $activeTroubles->get('metro', collect()),
+                'internet' => $activeTroubles->get('internet', collect()),
+            ],
             'grafik'    => [
-                    // 'lokal' => Trouble::select(DB::raw('count(id) as total'), DB::raw('MONTH(tgl_trouble) as bulan'), DB::raw('MAX(kategori)'))->groupBy('bulan')->orderBy('bulan')->where('kategori', 'lokal')->get(), // mysql
-                    'lokal'     => Trouble::select(DB::raw('count(id) as total'), DB::raw('strftime("%m", tgl_trouble) AS bulan'), DB::raw('MAX(kategori) as kategori'))->groupBy('bulan')->orderBy('bulan')->whereYear('tgl_trouble', '<=', date('Y'))->where('kategori', 'lokal')->get(), // sqlite
-                    'intra'     => Trouble::select(DB::raw('count(id) as total'), DB::raw('strftime("%m", tgl_trouble) AS bulan'), DB::raw('MAX(kategori) as kategori'))->groupBy('bulan')->orderBy('bulan')->whereYear('tgl_trouble', '<=', date('Y'))->where('kategori', 'opd')->get(),
-                    'metro'     => Trouble::select(DB::raw('count(id) as total'), DB::raw('strftime("%m", tgl_trouble) AS bulan'), DB::raw('MAX(kategori) as kategori'))->groupBy('bulan')->orderBy('bulan')->whereYear('tgl_trouble', '<=', date('Y'))->where('kategori', 'metro')->get(),
-                    'internet'  => Trouble::select(DB::raw('count(id) as total'), DB::raw('strftime("%m", tgl_trouble) AS bulan'), DB::raw('MAX(kategori) as kategori'))->groupBy('bulan')->orderBy('bulan')->whereYear('tgl_trouble', '<=', date('Y'))->where('kategori', 'internet')->get(),
-                    'bulan'     => Trouble::select(DB::raw('strftime("%m", tgl_trouble) AS bulan'))->groupBy('bulan')->orderBy('bulan')->whereYear('tgl_trouble', '<=', date('Y'))->get(),
+                'lokal'    => $rawTroubleStats->where('kategori', 'lokal')->values(),
+                'intra'    => $rawTroubleStats->where('kategori', 'opd')->values(),
+                'metro'    => $rawTroubleStats->where('kategori', 'metro')->values(),
+                'internet' => $rawTroubleStats->where('kategori', 'internet')->values(),
+                'bulan'    => $rawTroubleStats->pluck('bulan')->unique()->values()->map(fn($b) => ['bulan' => $b]),
             ],
             'guest'     => [
-                    'total' => BukuTamu::count(),
-                    'months'=> BukuTamu::whereMonth('tanggal', date('m'))->count(),
-                    'today' => BukuTamu::where('tanggal', date('Y-m-d'))->count(),
-                    'chart' => BukuTamu::select(DB::raw('count(id) as total'), DB::raw('strftime("%m", tanggal) AS bulan'))->whereYear('tanggal', '<=', date('Y'))->groupBy('bulan')->orderBy('bulan')->get(),
+                'total'  => BukuTamu::count(),
+                'months' => BukuTamu::whereMonth('tanggal', date('m'))->count(),
+                'today'  => BukuTamu::where('tanggal', date('Y-m-d'))->count(),
+                'chart'  => BukuTamu::select(DB::raw('count(id) as total'), DB::raw("{$monthGuest} AS bulan"))->whereYear('tanggal', '<=', date('Y'))->groupBy('bulan')->orderBy('bulan')->get(),
             ],
-            'inventory' => Inventory::all(),
+            'inventory' => Inventory::with(['category', 'brand', 'location'])->get(),
+            'network_monitors' => [
+                'total' => NetworkMonitor::where('is_active', true)->count(),
+                'up'    => NetworkMonitor::where('is_active', true)->where('status', 'UP')->count(),
+                'down'  => NetworkMonitor::where('is_active', true)->where('status', 'DOWN')->count(),
+            ],
         ];
         return Inertia::render('Dashboard', $data);
     }
@@ -56,6 +88,11 @@ class DashboardController extends Controller
         return Inertia::render('Guestbook', $data);
     }
 
+    public function guest_scan()
+    {
+        return Inertia::render('GuestScan');
+    }
+
     public function report_guest()
     {
         $data = [
@@ -64,6 +101,26 @@ class DashboardController extends Controller
         ];
 
         return Inertia::render('ReportGuest', $data);
+    }
+
+    public function export_guest_pdf(Request $request)
+    {
+        $query = BukuTamu::orderBy('tanggal', 'desc');
+
+        if ($request->has('start_date') && !empty($request->start_date)) {
+            $query->where('tanggal', '>=', $request->start_date);
+        }
+        if ($request->has('end_date') && !empty($request->end_date)) {
+            $query->where('tanggal', '<=', $request->end_date);
+        }
+
+        $lists = $query->get();
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.guest', [
+            'lists' => $lists,
+        ])->setPaper('a4', 'portrait');
+
+        return $pdf->stream('Laporan_Buku_Tamu_' . date('Ymd_His') . '.pdf');
     }
 
     public function save_guest(Request $request)

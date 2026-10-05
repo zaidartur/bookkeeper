@@ -9,15 +9,15 @@ Route::get('/user', function (Request $request) {
 })->middleware('auth:sanctum');
 
 Route::post('/ping', function(Request $request) {
-    $ipAddress = $request->input('ip_address');
+    $validated = $request->validate([
+        'ip_address' => 'required|ip',
+    ]);
 
-    if (!$ipAddress) {
-        return response()->json(['error' => 'IP address is required'], 400);
-    }
+    $ipAddress = $validated['ip_address'];
 
     try {
-        // Make a POST request to your Flask backend
-        $response = Http::post('http://127.0.0.1:5003/ping', [
+        $serviceUrl = rtrim(env('PING_SERVICE_URL', 'http://127.0.0.1:5000'), '/') . '/ping';
+        $response = Http::timeout(5)->post($serviceUrl, [
             'ip_address' => $ipAddress,
         ]);
 

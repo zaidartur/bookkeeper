@@ -33,6 +33,26 @@ class MaintenanceController extends Controller
         return Inertia::render('ReportMaintenance', $data);
     }
 
+    public function export_pdf(Request $request)
+    {
+        $query = Maintenance::orderBy('tanggal_mulai', 'desc');
+
+        if ($request->has('start_date') && !empty($request->start_date)) {
+            $query->where('tanggal_mulai', '>=', $request->start_date);
+        }
+        if ($request->has('end_date') && !empty($request->end_date)) {
+            $query->where('tanggal_mulai', '<=', $request->end_date);
+        }
+
+        $lists = $query->get();
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.maintenance', [
+            'lists' => $lists,
+        ])->setPaper('a4', 'landscape');
+
+        return $pdf->stream('Laporan_Pemeliharaan_Jaringan_' . date('Ymd_His') . '.pdf');
+    }
+
     public function save(Request $request)
     {
         $request->validate([

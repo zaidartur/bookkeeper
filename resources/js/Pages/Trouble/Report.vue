@@ -15,6 +15,7 @@ const toast = useToast();
 const datas = defineProps({
     lists: Object,
     dates: Object,
+    metrics: Object,
 })
 moment.locale('id')
 
@@ -177,11 +178,62 @@ const showImage = (img) => {
     <Card class="w-full">
         <template #title><i class="pi pi-sitemap"></i> Laporan Permasalahan Jaringan dan Internet</template>
         <template #content>
+            <!-- MTTR & SLA KPI Cards (Adaptive Light/Dark Mode) -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-5">
+                <div class="p-4 bg-surface-0 dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700/60 shadow-sm flex items-center justify-between transition-colors">
+                    <div>
+                        <div class="text-xs font-semibold text-muted-color uppercase tracking-wider">Total Tiket Selesai</div>
+                        <div class="text-2xl font-bold text-surface-900 dark:text-surface-0 mt-1">{{ datas.metrics?.total_resolved || dataTrouble.length }}</div>
+                    </div>
+                    <div class="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400 flex items-center justify-center text-xl">
+                        <i class="pi pi-check-circle"></i>
+                    </div>
+                </div>
+
+                <div class="p-4 bg-surface-0 dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700/60 shadow-sm flex items-center justify-between transition-colors">
+                    <div>
+                        <div class="text-xs font-semibold text-muted-color uppercase tracking-wider">Rata-rata Perbaikan (MTTR)</div>
+                        <div class="text-2xl font-bold text-surface-900 dark:text-surface-0 mt-1">{{ datas.metrics?.mttr_formatted || '-' }}</div>
+                    </div>
+                    <div class="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 dark:bg-purple-500/20 dark:text-purple-400 flex items-center justify-center text-xl">
+                        <i class="pi pi-clock"></i>
+                    </div>
+                </div>
+
+                <div class="p-4 bg-surface-0 dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700/60 shadow-sm flex items-center justify-between transition-colors">
+                    <div>
+                        <div class="text-xs font-semibold text-muted-color uppercase tracking-wider">Tingkat SLA (&le; 4 Jam)</div>
+                        <div class="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{{ datas.metrics?.sla_rate ?? 100 }}%</div>
+                    </div>
+                    <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 flex items-center justify-center text-xl">
+                        <i class="pi pi-shield"></i>
+                    </div>
+                </div>
+
+                <div class="p-4 bg-surface-0 dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700/60 shadow-sm flex items-center justify-between transition-colors">
+                    <div>
+                        <div class="text-xs font-semibold text-muted-color uppercase tracking-wider">SLA Tepat Waktu</div>
+                        <div class="text-2xl font-bold text-surface-900 dark:text-surface-0 mt-1">
+                            <span class="text-emerald-600 dark:text-emerald-400">{{ datas.metrics?.sla_compliant || 0 }}</span> / 
+                            <span class="text-rose-600 dark:text-rose-400">{{ datas.metrics?.sla_breached || 0 }}</span>
+                        </div>
+                    </div>
+                    <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400 flex items-center justify-center text-xl">
+                        <i class="pi pi-chart-pie"></i>
+                    </div>
+                </div>
+            </div>
+
             <div class="mt-5">
                 <DataTable v-model:filters="filters" :value="dataTrouble" paginator showGridlines :rows="15" :rowsPerPageOptions="[5, 10, 15, 20, 50]" tableStyle="min-width: 50rem" filterDisplay="menu" dataKey="id" :loading="loading" :globalFilterFields="['kategori', 'lokasi', 'problem']">
                     <template #header>
-                        <div class="flex justify-between">
-                            <Button type="button" icon="pi pi-filter-slash" label="Bersihkan Filter" outlined @click="clearFilter()" />
+                        <div class="flex justify-between items-center">
+                            <div class="flex gap-3">
+                                <Button type="button" icon="pi pi-filter-slash" label="Bersihkan Filter" outlined @click="clearFilter()" />
+                                <a href="/report/trouble/pdf" target="_blank" class="no-underline">
+                                    <Button type="button" icon="pi pi-print" label="Cetak PDF" severity="danger" outlined />
+                                </a>
+                            </div>
                             <IconField>
                                 <InputIcon>
                                     <i class="pi pi-search" />

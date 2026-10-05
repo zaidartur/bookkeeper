@@ -7,12 +7,13 @@ const user = usePage().props.auth.user
 const datas = defineProps({
     lists: Object,
     dates: Object,
+    metrics: Object,
 })
 
 </script>
 
 <template>
     <app-layout>
-        <View :user="user" :lists="datas.lists" :dates="datas.dates" />
+        <View :user="user" :lists="datas.lists" :dates="datas.dates" :metrics="datas.metrics" />
     </app-layout>
 </template>

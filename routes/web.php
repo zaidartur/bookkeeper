@@ -62,7 +62,24 @@ Route::prefix('/')->middleware('auth')->group(function() {
 
     Route::prefix('/network')->group(function() {
         Route::get('/', [IpAddressController::class, 'view'])->name('ip');
+        Route::get('/status', [IpAddressController::class, 'device_status'])->name('ip.status');
         Route::get('/testing', [IpAddressController::class, 'testing'])->name('ip.test');
+
+        Route::get('/grid/{uuid}', [IpAddressController::class, 'get_grid'])->name('ip.grid');
+        Route::post('/subnet/save', [IpAddressController::class, 'save_subnet'])->name('ip.subnet.save');
+        Route::post('/subnet/delete/{uuid}', [IpAddressController::class, 'delete_subnet'])->name('ip.subnet.delete');
+        Route::post('/assign', [IpAddressController::class, 'assign_ip'])->name('ip.assign');
+        Route::post('/release', [IpAddressController::class, 'release_ip'])->name('ip.release');
+        Route::post('/sync-mikrotik', [IpAddressController::class, 'sync_mikrotik'])->name('ip.sync_mikrotik');
+        Route::get('/pdf/{uuid}', [IpAddressController::class, 'export_pdf'])->name('ip.pdf');
+
+        // Router Management & Test Connection
+        Route::get('/routers', [IpAddressController::class, 'router_list'])->name('ip.router.list');
+        Route::post('/router/test', [IpAddressController::class, 'router_test_connection'])->name('ip.router.test');
+        Route::post('/router/store', [IpAddressController::class, 'router_store'])->name('ip.router.store');
+        Route::post('/router/update/{uuid}', [IpAddressController::class, 'router_update'])->name('ip.router.update');
+        Route::post('/router/delete/{uuid}', [IpAddressController::class, 'router_delete'])->name('ip.router.delete');
+        Route::post('/router/toggle/{uuid}', [IpAddressController::class, 'router_toggle'])->name('ip.router.toggle');
 
         Route::post('/save', [IpAddressController::class, 'save'])->name('ip.save');
         Route::post('/update', [IpAddressController::class, 'update'])->name('ip.update');
@@ -73,14 +90,17 @@ Route::prefix('/')->middleware('auth')->group(function() {
 
     Route::prefix('/report')->group(function() {
         Route::get('/trouble', [TroubleController::class, 'report'])->name('report.trouble');
+        Route::get('/trouble/pdf', [TroubleController::class, 'export_pdf'])->name('report.trouble.pdf');
         Route::get('/maintenance', [MaintenanceController::class, 'report'])->name('report.maintenance');
+        Route::get('/maintenance/pdf', [MaintenanceController::class, 'export_pdf'])->name('report.maintenance.pdf');
         Route::get('/guest', [DashboardController::class, 'report_guest'])->name('report.guest');
-        // Route::post('/guest/import', [DashboardController::class, 'import_guest'])->name('report.guest.import');
+        Route::get('/guest/pdf', [DashboardController::class, 'export_guest_pdf'])->name('report.guest.pdf');
     });
 
     Route::prefix('/inventory')->group(function() {
         Route::get('/master-data', [InventoryController::class, 'master'])->name('inventory.master');
         Route::get('/list-barang', [InventoryController::class, 'show'])->name('inventory.list');
+        Route::get('/pdf', [InventoryController::class, 'export_pdf'])->name('inventory.pdf');
 
         Route::post('/save-master', [InventoryController::class, 'save_master'])->name('inventory.master.save');
         Route::post('/save-data', [InventoryController::class, 'save_inventory'])->name('inventory.save');
@@ -99,6 +119,7 @@ Route::prefix('/')->middleware('auth')->group(function() {
 });
 
 Route::get('/buku-tamu', [DashboardController::class, 'guestbook'])->name('guestbook');
+Route::get('/buku-tamu/scan', [DashboardController::class, 'guest_scan'])->name('guestbook.scan');
 Route::post('/buku-tamu/save-form', [DashboardController::class, 'save_guest'])->name('guestbook.save');
 
 Route::middleware('auth')->group(function () {

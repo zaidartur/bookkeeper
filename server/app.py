@@ -1,16 +1,34 @@
-# flask_ping_backend/app.py
+import os
+import re
+import ipaddress
+import time
+import platform
+import threading
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from ping3 import ping, errors
 from flask_socketio import SocketIO, emit
-import time
-import platform
-import threading
 
 app = Flask(__name__)
-# CORS(app) # Enable CORS for all routes, important for frontend communication
-CORS(app, resources={r"/*": {"origins": "*"}})
-socketio = SocketIO(app, cors_allowed_origins="*") 
+raw_origins = os.getenv('ALLOWED_ORIGINS', '*')
+cors_allowed_origins = [o.strip() for o in raw_origins.split(',') if o.strip()] if raw_origins != '*' else '*'
+
+CORS(app, resources={r"/*": {"origins": cors_allowed_origins}})
+socketio = SocketIO(app, cors_allowed_origins=cors_allowed_origins)
+
+def is_valid_target(target: str) -> bool:
+    if not target or not isinstance(target, str):
+        return False
+    target = target.strip()
+    try:
+        ipaddress.ip_address(target)
+        return True
+    except ValueError:
+        pass
+    if len(target) > 253:
+        return False
+    hostname_regex = r'^(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.[A-Za-z0-9-]{1,63})*$'
+    return bool(re.match(hostname_regex, target))
 
 @socketio.on('connect')
 def test_connect():
@@ -116,6 +134,10 @@ def handle_start_ping(data):
 
     if not ip_address:
         emit('ping_error', {"error": "IP address is required"})
+        return
+
+    if not is_valid_target(str(ip_address)):
+        emit('ping_error', {"error": f"Invalid IP address or hostname: '{ip_address}'"})
         return
 
     print(f"Starting ping for {ip_address} ({num_pings} times)")

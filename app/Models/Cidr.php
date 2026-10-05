@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Cidr extends Model
 {
+    protected $guarded = [];
     /**
      * Get all of the ip_address for the Cidr
      *

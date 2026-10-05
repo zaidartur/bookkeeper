@@ -17,4 +17,24 @@ export default defineConfig({
             },
         }),
     ],
+    build: {
+        chunkSizeWarningLimit: 800,
+        rollupOptions: {
+            output: {
+                manualChunks(id) {
+                    if (id.includes('node_modules')) {
+                        if (id.includes('echarts') || id.includes('zrender')) {
+                            return 'vendor-echarts';
+                        }
+                        if (id.includes('primevue') || id.includes('@primeuix')) {
+                            return 'vendor-primevue';
+                        }
+                        if (id.includes('chart.js')) {
+                            return 'vendor-chartjs';
+                        }
+                    }
+                },
+            },
+        },
+    },
 });

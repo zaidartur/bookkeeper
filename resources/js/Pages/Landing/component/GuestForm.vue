@@ -8,6 +8,7 @@ import { Form } from '@primevue/forms';
 import { zodResolver } from '@primevue/forms/resolvers/zod';
 import { z } from 'zod';
 import moment from 'moment';
+import QRCode from 'qrcode';
 
 const toast = useToast();
 const confirm = useConfirm();
@@ -177,13 +178,72 @@ const mouseOutCard = (e) => {
     dialogElement.classList.remove('is-hover') 
 }
 
+const showQrModal = ref(false);
+const qrDataUrl = ref('');
+const scanUrl = ref('');
+
+const openQrModal = async () => {
+    scanUrl.value = window.location.origin + '/buku-tamu/scan';
+    try {
+        qrDataUrl.value = await QRCode.toDataURL(scanUrl.value, {
+            width: 280,
+            margin: 2,
+            color: {
+                dark: '#0f172a',
+                light: '#ffffff'
+            }
+        });
+        showQrModal.value = true;
+    } catch (err) {
+        console.error('Failed to generate QR code', err);
+    }
+};
+
+const printQrStand = () => {
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>QR Stand Buku Tamu</title>
+            <style>
+                @page { size: A4 portrait; margin: 2cm; }
+                body { font-family: 'Helvetica Neue', Arial, sans-serif; text-align: center; color: #1e293b; padding: 40px; }
+                .stand-box { border: 3px solid #0284c7; border-radius: 20px; padding: 30px; max-width: 480px; margin: 0 auto; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+                h1 { font-size: 24px; margin-bottom: 5px; text-transform: uppercase; color: #0369a1; }
+                p { font-size: 14px; color: #64748b; margin-top: 0; }
+                .qr-img { width: 260px; height: 260px; margin: 20px auto; display: block; }
+                .instruksi { font-size: 14px; font-weight: bold; color: #0f172a; margin-top: 15px; }
+                .url-text { font-size: 11px; color: #94a3b8; word-break: break-all; margin-top: 10px; }
+            </style>
+        </head>
+        <body>
+            <div class="stand-box">
+                <h1>Buku Tamu Digital</h1>
+                <p>Dinas Komunikasi dan Informatika</p>
+                <img src="${qrDataUrl.value}" class="qr-img" />
+                <div class="instruksi">Arahkan Kamera Smartphone Anda ke QR Code Ini untuk Mengisi Formulir Kunjungan</div>
+                <div class="url-text">${scanUrl.value}</div>
+            </div>
+            <script>
+                window.onload = function() { window.print(); }
+            <\/script>
+        </body>
+        </html>
+    `);
+    printWindow.document.close();
+};
+
 </script>
 
 <template>
     <Toast />
     <div id="tamu" class="py-6 px-6 lg:px-20 mt-0 mx-0 lg:mx-40">
-        <div class="mt-7">
-            <h1 class="text-surface-900 dark:text-surface-0 font-normal mb-2 text-4xl text-center">Buku Tamu Data Center Diskominfo Karanganyar</h1>
+        <div class="mt-7 text-center">
+            <h1 class="text-surface-900 dark:text-surface-0 font-normal mb-2 text-4xl">Buku Tamu Data Center Diskominfo Karanganyar</h1>
+            <div class="flex justify-center items-center gap-3 my-4">
+                <Button label="Pindai QR Stand Meja Resepsionis" icon="pi pi-qrcode" severity="info" outlined @click="openQrModal" />
+            </div>
         </div>
 
         <!-- <div>
@@ -305,6 +365,24 @@ const mouseOutCard = (e) => {
             </div>
         </template>
     </ConfirmDialog>
+
+    <Dialog v-model:visible="showQrModal" modal header="QR Code Stand Meja Resepsionis" :style="{ width: '420px' }">
+        <div class="text-center p-2">
+            <p class="text-sm text-surface-600 dark:text-surface-300 mb-3">
+                Pajang QR Code ini di meja resepsionis agar tamu dapat memindai via smartphone dan mengisi formulir secara mandiri.
+            </p>
+            <div class="bg-white p-3 rounded-2xl inline-block shadow-md mb-3 border border-surface-200">
+                <img v-if="qrDataUrl" :src="qrDataUrl" alt="QR Code Buku Tamu" class="w-64 h-64 mx-auto" />
+            </div>
+            <div class="text-xs text-surface-500 break-all mb-4">
+                {{ scanUrl }}
+            </div>
+            <div class="flex gap-2 justify-center">
+                <Button label="Cetak Stand Meja" icon="pi pi-print" severity="primary" @click="printQrStand" />
+                <Button label="Tutup" severity="secondary" outlined @click="showQrModal = false" />
+            </div>
+        </div>
+    </Dialog>
 
 </template>
 

@@ -25,6 +25,26 @@ class InventoryController extends Controller
         return Inertia::render('DataInventory', $data);
     }
 
+    public function export_pdf(Request $request)
+    {
+        $query = Inventory::with(['category', 'brand', 'location', 'user'])->orderBy('id');
+
+        if ($request->has('category_id') && !empty($request->category_id)) {
+            $query->where('category_id', $request->category_id);
+        }
+        if ($request->has('status') && !empty($request->status)) {
+            $query->where('status', $request->status);
+        }
+
+        $lists = $query->get();
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.inventory', [
+            'lists' => $lists,
+        ])->setPaper('a4', 'landscape');
+
+        return $pdf->stream('Laporan_Inventaris_Barang_' . date('Ymd_His') . '.pdf');
+    }
+
     public function master()
     {
         $data = [

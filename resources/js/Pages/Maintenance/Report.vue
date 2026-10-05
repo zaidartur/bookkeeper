@@ -201,9 +201,12 @@ const showImage = (img) => {
             <div class="mt-5">
                 <DataTable v-model:filters="filters" :value="dataMaintenance" paginator showGridlines :rows="15" :rowsPerPageOptions="[5, 10, 15, 20, 50]" tableStyle="min-width: 50rem" filterDisplay="menu" dataKey="id" :loading="loading" :globalFilterFields="['tgl_mulai', 'judul', 'lokasi', 'petugas']">
                     <template #header>
-                        <div class="flex justify-between">
-                            <div class="flex w-6/12 gap-4">
+                        <div class="flex justify-between items-center">
+                            <div class="flex flex-wrap items-center gap-3">
                                 <Button type="button" icon="pi pi-filter-slash" label="Bersihkan Filter" outlined @click="clearFilter()" />
+                                <a href="/report/maintenance/pdf" target="_blank" class="no-underline">
+                                    <Button type="button" icon="pi pi-print" label="Cetak PDF" severity="danger" outlined />
+                                </a>
                                 <DatePicker 
                                     v-model="dateFilter"
                                     selectionMode="range"

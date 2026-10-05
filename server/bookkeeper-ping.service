@@ -1,0 +1,18 @@
+[Unit]
+Description=Bookkeeper Python Ping Microservice
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/bookkeeper/server
+ExecStart=/usr/bin/python3 ping.py
+Restart=always
+RestartSec=5
+Environment=PING_SERVER_PORT=5000
+Environment=PING_SERVER_HOST=0.0.0.0
+Environment=ALLOWED_ORIGINS=*
+
+[Install]
+WantedBy=multi-user.target

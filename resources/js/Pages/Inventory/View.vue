@@ -370,6 +370,9 @@ onMounted(() => {
                             <div class="flex flex-wrap gap-4">
                                 <Button type="button" icon="pi pi-filter-slash" label="Bersihkan Filter" outlined @click="clearFilter()" />
                                 <Button type="button" severity="info" icon="pi pi-plus" label="Tambah Data" @click="newData()" />
+                                <a href="/inventory/pdf" target="_blank" class="no-underline">
+                                    <Button type="button" severity="danger" icon="pi pi-print" label="Cetak PDF" outlined />
+                                </a>
                             </div>
                             <IconField>
                                 <InputIcon>

@@ -7,6 +7,24 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class IpAssignments extends Model
 {
+    protected $fillable = [
+        'uuid_ip',
+        'assigned_ip',
+        'device',
+        'kategori',
+        'status',
+        'mac_address',
+        'hostname',
+        'source',
+        'last_seen',
+        'keterangan',
+        'user_id',
+    ];
+
+    protected $casts = [
+        'last_seen' => 'datetime',
+    ];
+
     /**
      * Get the ip_address that owns the IpAssignments
      *
@@ -14,7 +32,7 @@ class IpAssignments extends Model
      */
     public function ip_address(): BelongsTo
     {
-        return $this->belongsTo(IpAddress::class, 'uuid', 'uuid_ip');
+        return $this->belongsTo(IpAddress::class, 'uuid_ip', 'uuid');
     }
 
     /**
@@ -24,6 +42,6 @@ class IpAssignments extends Model
      */
     public function user(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'uuid', 'user_id');
+        return $this->belongsTo(User::class, 'user_id', 'uuid');
     }
 }

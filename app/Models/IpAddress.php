@@ -8,6 +8,16 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class IpAddress extends Model
 {
+    protected $fillable = [
+        'uuid',
+        'network_ip',
+        'subnet_mask',
+        'cidr',
+        'total_ip',
+        'usable_hosts',
+        'keterangan',
+        'user_id',
+    ];
     /**
      * Get all of the ip_assignment for the IpAddress
      *
