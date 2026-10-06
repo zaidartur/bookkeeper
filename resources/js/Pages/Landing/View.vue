@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { defineProps, ref, onMounted  } from 'vue';
+import { defineProps } from 'vue';
 
 import FeaturesWidget from './component/FeaturesWidget.vue';
 import FooterWidget from './component/FooterWidget.vue';
@@ -12,9 +12,19 @@ const datas = defineProps({
     user: Object,
     api: Object,
     agent: Object,
-})
-
-// console.log('ini', datas.user)
+    cards: {
+        type: Array,
+        default: () => []
+    },
+    galleries: {
+        type: Array,
+        default: () => []
+    },
+    services: {
+        type: Array,
+        default: () => []
+    },
+});
 </script>
 
 <template>
@@ -22,9 +32,9 @@ const datas = defineProps({
 
     <layout-widget :user="datas.user">
         <HeroWidget />
-        <FeaturesWidget />
-        <HighlightsWidget />
-        <PricingWidget />
+        <FeaturesWidget :cards="datas.cards" />
+        <HighlightsWidget :galleries="datas.galleries" />
+        <PricingWidget :services="datas.services" />
         <FooterWidget :api="datas.api" :agent="datas.agent" />
     </layout-widget>
 </template>

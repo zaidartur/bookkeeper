@@ -4,8 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Imports\ImportTamu;
 use App\Models\BukuTamu;
+use App\Models\Cidr;
 use App\Models\Inventory;
 use App\Models\NetworkMonitor;
+use App\Models\Petugas;
+use App\Models\Router;
 use App\Models\Trouble;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -74,6 +77,16 @@ class DashboardController extends Controller
                 'total' => NetworkMonitor::where('is_active', true)->count(),
                 'up'    => NetworkMonitor::where('is_active', true)->where('status', 'UP')->count(),
                 'down'  => NetworkMonitor::where('is_active', true)->where('status', 'DOWN')->count(),
+                'items' => NetworkMonitor::where('is_active', true)
+                    ->select('id', 'name', 'ip_address', 'type', 'status', 'response_time_ms', 'last_checked_at')
+                    ->orderBy('id', 'asc')
+                    ->get(),
+            ],
+            'noc_stats' => [
+                'total_routers'  => Router::count(),
+                'active_routers' => Router::where('is_active', true)->count(),
+                'total_subnets'  => Cidr::count(),
+                'total_petugas'  => Petugas::count(),
             ],
         ];
         return Inertia::render('Dashboard', $data);

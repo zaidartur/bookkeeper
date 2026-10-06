@@ -8,8 +8,11 @@ use App\Models\IpAssignments;
 use App\Models\NetworkMonitor;
 use App\Models\Router;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -74,6 +77,7 @@ class IpAddressController extends Controller
 
         return Inertia::render('Network', [
             'router'       => $this->router->interface(),
+            'routers'      => $this->router->interface(),
             'routers_list' => $routersList,
             'subnets'      => $subnets,
             'cidrs'        => $cidrs,
@@ -94,55 +98,132 @@ class IpAddressController extends Controller
         $ipLong = ip2long($networkIp);
         $totalIps = pow(2, 32 - $cidr);
 
-        // Cap grid calculation for massive subnets (/16 has 65k IPs) to max 512 for smooth browser rendering
+        // Batasi kalkulasi grid untuk subnet raksasa (/16 memiliki 65k IP) maksimal 512 sel untuk performa browser
         $renderCount = min($totalIps, 512);
 
         $mask = ~($totalIps - 1) & 0xFFFFFFFF;
         $baseIpLong = $ipLong & $mask;
 
-        // Fetch all assignments for this subnet
-        $assignments = IpAssignments::where('uuid_ip', $uuid)
-            ->get()
-            ->keyBy('assigned_ip');
+        // Pencarian assignment yang robust: cocokkan dengan rentang IP subnet dan perbaiki uuid_ip jika tidak sinkron
+        $allAssignments = IpAssignments::all();
+        $assignments = collect();
+        foreach ($allAssignments as $a) {
+            $ipTrimmed = trim($a->assigned_ip);
+            $ipL = ip2long($ipTrimmed);
+            if ($ipL !== false && ($ipL & $mask) === $baseIpLong) {
+                $assignments->put($ipTrimmed, $a);
+                if ($a->uuid_ip !== $uuid) {
+                    $a->uuid_ip = $uuid;
+                    $a->save();
+                }
+            }
+        }
+
+        // Ambil data hasil audit ICMP Ping terkini dari Cache jika ada
+        $cachedScan = Cache::get("subnet_live_ips_{$uuid}");
+        $hasScanData = ($cachedScan !== null);
+        $liveIpsSet = is_array($cachedScan) ? array_flip($cachedScan) : [];
+        $lastScannedAt = Cache::get("subnet_last_scanned_{$uuid}");
 
         $cells = [];
         $usedCount = 0;
         $reservedCount = 0;
+        $onlineCount = 0;
+        $offlineCount = 0;
+        $unregisteredActiveCount = 0;
 
         for ($i = 0; $i < $renderCount; $i++) {
             $currentIp = long2ip($baseIpLong + $i);
             $assignment = $assignments->get($currentIp);
 
-            $type = 'available';
-            if ($i === 0) {
+            $isNetwork = ($i === 0);
+            $isBroadcast = ($i === ($totalIps - 1));
+
+            // Klasifikasi Gateway: host .1 (default gateway), atau perangkat berkategori router/gateway
+            $isGateway = false;
+            if (!$isNetwork && !$isBroadcast) {
+                if ($i === 1) {
+                    $isGateway = true;
+                } elseif ($assignment && (
+                    stripos($assignment->kategori ?? '', 'router') !== false ||
+                    stripos($assignment->device ?? '', 'gateway') !== false ||
+                    stripos($assignment->device ?? '', 'router') !== false
+                )) {
+                    $isGateway = true;
+                }
+            }
+
+            // Status Keaktifan Fisik Jaringan (ICMP Ping Live)
+            $isPingLive = isset($liveIpsSet[$currentIp]);
+            $isLive = false;
+            $liveStatus = 'unverified'; // 'online', 'offline', 'unverified'
+
+            if ($hasScanData) {
+                if ($isPingLive) {
+                    $isLive = true;
+                    $liveStatus = 'online';
+                    $onlineCount++;
+                } else {
+                    $isLive = false;
+                    $liveStatus = 'offline';
+                    if ($assignment) {
+                        $offlineCount++;
+                    }
+                }
+            } else {
+                // Estimasi awal sebelum audit pertama kali dijalankan
+                if ($assignment && ($assignment->source !== 'manual' || ($assignment->last_seen && $assignment->last_seen->diffInHours(now()) < 24))) {
+                    $isLive = true;
+                    $liveStatus = 'online';
+                    $onlineCount++;
+                } else {
+                    $liveStatus = 'unverified';
+                }
+            }
+
+            // Klasifikasi Tipe Alokasi Sel
+            if ($isNetwork) {
                 $type = 'network';
                 $reservedCount++;
-            } elseif ($i === ($totalIps - 1)) {
+            } elseif ($isBroadcast) {
                 $type = 'broadcast';
                 $reservedCount++;
-            } elseif ($i === 1 && !$assignment) {
+            } elseif ($isGateway) {
                 $type = 'gateway';
-                $reservedCount++;
+                if ($assignment) {
+                    $usedCount++;
+                } else {
+                    $reservedCount++;
+                }
             } elseif ($assignment) {
                 $type = 'assigned';
                 $usedCount++;
+            } elseif ($isLive && !$isNetwork && !$isBroadcast) {
+                // Host Aktif di Jaringan tetapi BELUM tercatat di IPAM (Rogue / Unregistered Active Host)
+                $type = 'unregistered_active';
+                $unregisteredActiveCount++;
+            } else {
+                $type = 'available';
             }
 
-            $isLive = false;
-            if ($assignment && ($assignment->source !== 'manual' || ($assignment->last_seen && $assignment->last_seen->diffInHours(now()) < 24))) {
-                $isLive = true;
-            }
+            // Penomoran host akurat: membaca oktet host sebenarnya dari alamat IP
+            $octets = explode('.', $currentIp);
+            $hostLabel = ($cidr <= 23) ? ($octets[2] . '.' . $octets[3]) : $octets[3];
 
             $cells[] = [
-                'host'       => $i,
-                'ip'         => $currentIp,
-                'type'       => $type,
-                'assignment' => $assignment,
-                'is_live'    => $isLive,
+                'host'        => $hostLabel,
+                'host_index'  => $i,
+                'last_octet'  => intval($octets[3] ?? $i),
+                'ip'          => $currentIp,
+                'type'        => $type,
+                'is_gateway'  => $isGateway,
+                'assignment'  => $assignment,
+                'is_live'     => $isLive,
+                'live_status' => $liveStatus, // 'online', 'offline', 'unverified'
             ];
         }
 
-        // Available count is total usable hosts minus used
+        // Kapasitas usable host adalah total IP dikurangi 2 (Network & Broadcast)
         $usableHosts = max(0, $totalIps - 2);
         $freeCount = max(0, $usableHosts - $usedCount);
         $utilization = $usableHosts > 0 ? round(($usedCount / $usableHosts) * 100, 1) : 0;
@@ -150,12 +231,17 @@ class IpAddressController extends Controller
         return response()->json([
             'subnet' => $subnet,
             'stats'  => [
-                'total'       => $totalIps,
-                'usable'      => $usableHosts,
-                'used'        => $usedCount,
-                'free'        => $freeCount,
-                'reserved'    => $reservedCount,
-                'utilization' => $utilization,
+                'total'               => $totalIps,
+                'usable'              => $usableHosts,
+                'used'                => $usedCount,
+                'free'                => $freeCount,
+                'reserved'            => $reservedCount,
+                'utilization'         => $utilization,
+                'online'              => $onlineCount,
+                'offline'             => $offlineCount,
+                'unregistered_active' => $unregisteredActiveCount,
+                'has_scan_data'       => $hasScanData,
+                'last_scanned_at'     => $lastScannedAt ? Carbon::parse($lastScannedAt)->format('H:i:s') : null,
             ],
             'cells' => $cells,
         ]);
@@ -366,8 +452,11 @@ class IpAddressController extends Controller
     {
         $subnet = IpAddress::where('uuid', $uuid)->firstOrFail();
         $assignments = IpAssignments::where('uuid_ip', $uuid)
-            ->orderBy('assigned_ip', 'asc')
-            ->get();
+            ->get()
+            ->sortBy(function($a) {
+                return ip2long($a->assigned_ip);
+            })
+            ->values();
 
         $usableHosts = max(0, $subnet->total_ip - 2);
         $usedCount = $assignments->count();
@@ -394,6 +483,134 @@ class IpAddressController extends Controller
         $fileName = 'Laporan_IPAM_' . str_replace('.', '_', $subnet->network_ip) . '_' . $subnet->cidr . '.pdf';
 
         return $pdf->stream($fileName);
+    }
+
+    public function scan_live_subnet(Request $request, $uuid)
+    {
+        $subnet = IpAddress::where('uuid', $uuid)->firstOrFail();
+        $cidr = intval($subnet->cidr);
+        $totalIps = pow(2, 32 - $cidr);
+        $mask = ~($totalIps - 1) & 0xFFFFFFFF;
+        $baseIpLong = ip2long($subnet->network_ip) & $mask;
+
+        // Siapkan daftar target IP host (lewati network .0 dan broadcast)
+        $targetIps = [];
+        $scanCount = min($totalIps - 2, 510);
+        for ($i = 1; $i <= $scanCount; $i++) {
+            $targetIps[] = long2ip($baseIpLong + $i);
+        }
+
+        $pingServiceUrl = env('PING_SERVICE_URL', 'http://127.0.0.1:5005');
+        $activeIps = [];
+        $details = [];
+        $duration = 0;
+
+        try {
+            $response = Http::timeout(12)->post("{$pingServiceUrl}/scan-subnet", [
+                'ips'        => $targetIps,
+                'timeout_ms' => 350,
+            ]);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                $activeIps = $data['active_ips'] ?? [];
+                $details   = $data['details'] ?? [];
+                $duration  = $data['duration_seconds'] ?? 0;
+            }
+        } catch (\Exception $e) {
+            Log::warning("Ping microservice scan error: " . $e->getMessage());
+        }
+
+        // Cache hasil scan selama 60 menit
+        Cache::put("subnet_live_ips_{$uuid}", $activeIps, now()->addMinutes(60));
+        Cache::put("subnet_live_details_{$uuid}", $details, now()->addMinutes(60));
+        Cache::put("subnet_last_scanned_{$uuid}", now()->toDateTimeString(), now()->addMinutes(60));
+
+        // Update timestamp last_seen pada assignment yang terbukti aktif merespons ping
+        if (!empty($activeIps)) {
+            IpAssignments::where('uuid_ip', $uuid)
+                ->whereIn('assigned_ip', $activeIps)
+                ->update(['last_seen' => now()]);
+        }
+
+        // Analisis kategorisasi status
+        $assignedIps = IpAssignments::where('uuid_ip', $uuid)->pluck('assigned_ip')->toArray();
+        $assignedSet = array_flip($assignedIps);
+
+        $onlineAssigned = 0;
+        $offlineAssigned = 0;
+        $unregisteredActive = [];
+
+        foreach ($assignedIps as $aIp) {
+            if (in_array($aIp, $activeIps)) {
+                $onlineAssigned++;
+            } else {
+                $offlineAssigned++;
+            }
+        }
+
+        foreach ($activeIps as $actIp) {
+            if (!isset($assignedSet[$actIp])) {
+                $unregisteredActive[] = $actIp;
+            }
+        }
+
+        return response()->json([
+            'success'            => true,
+            'message'            => "Audit ICMP selesai dalam {$duration}s. " . count($activeIps) . " host aktif terdeteksi.",
+            'total_scanned'      => count($targetIps),
+            'active_count'       => count($activeIps),
+            'online_assigned'    => $onlineAssigned,
+            'offline_assigned'   => $offlineAssigned,
+            'unregistered_count' => count($unregisteredActive),
+            'unregistered_ips'   => $unregisteredActive,
+            'duration_seconds'   => $duration,
+            'last_scanned_at'    => now()->format('H:i:s'),
+        ]);
+    }
+
+    public function claim_all_active_ips(Request $request, $uuid)
+    {
+        $subnet = IpAddress::where('uuid', $uuid)->firstOrFail();
+        $cachedActive = Cache::get("subnet_live_ips_{$uuid}", []);
+
+        if (empty($cachedActive)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Belum ada data host aktif. Jalankan "Audit Host Aktif (Ping Sweep)" terlebih dahulu.',
+            ], 400);
+        }
+
+        $existingIps = IpAssignments::where('uuid_ip', $uuid)->pluck('assigned_ip')->toArray();
+        $existingSet = array_flip($existingIps);
+
+        $newCount = 0;
+        foreach ($cachedActive as $ip) {
+            if (!isset($existingSet[$ip])) {
+                $octets = explode('.', $ip);
+                $lastOctet = end($octets);
+                IpAssignments::create([
+                    'uuid_ip'     => $uuid,
+                    'assigned_ip' => $ip,
+                    'device'      => "Discovered Host (.{$lastOctet})",
+                    'kategori'    => 'Auto-Discovered',
+                    'status'      => 'Active Host',
+                    'mac_address' => null,
+                    'hostname'    => null,
+                    'source'      => 'ping_sweep',
+                    'last_seen'   => now(),
+                    'keterangan'  => 'Terdeteksi aktif melalui audit ICMP Ping Sweep',
+                    'user_id'     => Auth::user()->uuid ?? 'system',
+                ]);
+                $newCount++;
+            }
+        }
+
+        return response()->json([
+            'success'   => true,
+            'message'   => "Berhasil mendaftarkan {$newCount} host aktif ke IPAM.",
+            'new_count' => $newCount,
+        ]);
     }
 
     public function monitoring(Request $request)

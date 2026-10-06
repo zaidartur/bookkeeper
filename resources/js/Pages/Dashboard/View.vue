@@ -3,6 +3,7 @@ import { defineProps } from "vue";
 import moment from 'moment';
 import id from 'moment/dist/locale/id';
 
+import WelcomeBanner from '@/Pages/Dashboard/component/WelcomeBanner.vue';
 import BestSellingWidget from '@/Pages/Dashboard/component/BestSellingWidget.vue';
 import NotificationsWidget from '@/Pages/Dashboard/component/NotificationsWidget.vue';
 import RevenueStreamWidget from '@/Pages/Dashboard/component/RevenueStreamWidget.vue';
@@ -17,6 +18,8 @@ const datas = defineProps({
     guest: Object,
     grafik: Object,
     invent: Object,
+    networkMonitors: Object,
+    nocStats: Object,
 })
 const _today = moment().format('dddd, DD MMMM YYYY')
 </script>
@@ -26,7 +29,7 @@ const _today = moment().format('dddd, DD MMMM YYYY')
 
     <div class="grid grid-cols-12 gap-8">
         <div class="col-span-12">
-            <div class="font-semibold text-xl"><i class="pi pi-calendar"></i> {{ _today }}</div>
+            <WelcomeBanner :networkMonitors="datas.networkMonitors" :nocStats="datas.nocStats" />
         </div>
         <StatsTrouble :troubles="datas.troubles" :grafik="datas.grafik" :guest="datas.guest" />
         <!-- <StatsGuest :guest="datas.guest" /> -->

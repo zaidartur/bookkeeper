@@ -20,10 +20,10 @@ Write-Host "Menggunakan Python: $PythonExe" -ForegroundColor Cyan
 Write-Host "Memastikan dependensi terpasang..." -ForegroundColor Gray
 & $PythonExe -m pip install -r requirements.txt --quiet
 
-$env:PING_SERVER_PORT = "5000"
+$env:PING_SERVER_PORT = "5005"
 $env:PING_SERVER_HOST = "0.0.0.0"
 
-Write-Host "Memulai daemon Bookkeeper Ping Service di port 5000..." -ForegroundColor Green
+Write-Host "Memulai daemon Bookkeeper Ping Service di port 5005..." -ForegroundColor Green
 
 while ($true) {
     try {

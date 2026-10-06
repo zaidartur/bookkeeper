@@ -176,9 +176,23 @@ class Router extends Model
 
                     $client = new Client($config);
 
-                    // Fetch interfaces
-                    $query = new Query('/interface/getall');
-                    $gets = $client->query($query)->read();
+                    // Fetch interfaces (canonical /interface/print for RouterOS v6 & v7)
+                    $gets = [];
+                    try {
+                        $query = new Query('/interface/print');
+                        $gets = $client->query($query)->read();
+                    } catch (Exception $e) {
+                        $gets = [];
+                    }
+                    if (!is_array($gets) || empty($gets)) {
+                        try {
+                            $query = new Query('/interface/getall');
+                            $gets = $client->query($query)->read();
+                        } catch (Exception $e) {
+                            $gets = [];
+                        }
+                    }
+
                     $out = [];
                     if (is_array($gets) && count($gets) > 0) {
                         foreach ($gets as $item) {
@@ -194,18 +208,23 @@ class Router extends Model
                                 'name'         => $item['name'] ?? null,
                                 'running'      => $item['running'] ?? 'false',
                                 'type'         => $item['type'] ?? 'ether',
+                                'comment'      => $item['comment'] ?? null,
                             ];
                         }
                     }
 
+                    // Pre-calculate per-router initial consumption
+                    $initialConsumption = RouterBandwidthLog::getConsumptionStats($router->id);
+
                     $res[] = [
-                        'id'      => $router->id,
-                        'uuid'    => $router->uuid,
-                        'name'    => $router->name,
-                        'host'    => $router->host,
-                        'port'    => $router->port,
-                        'data'    => $out,
-                        'address' => $this->address($config),
+                        'id'          => $router->id,
+                        'uuid'        => $router->uuid,
+                        'name'        => $router->name,
+                        'host'        => $router->host,
+                        'port'        => $router->port,
+                        'data'        => $out,
+                        'address'     => $this->address($config),
+                        'consumption' => $initialConsumption,
                     ];
                 } catch (Exception $e) {
                     $res[] = false;
@@ -261,7 +280,36 @@ class Router extends Model
 
             $client = new Client($config);
 
-            empty($name) ? ($name = 'ether1') : null;
+            // Resolusi nama interface sebenarnya di RouterOS
+            $targetName = $name;
+            $allQuery = new Query('/interface/print');
+            $allIfs = $client->query($allQuery)->read();
+            
+            if (is_array($allIfs) && count($allIfs) > 0) {
+                $matched = false;
+                foreach ($allIfs as $ifItem) {
+                    $iName = $ifItem['name'] ?? '';
+                    $iDef = $ifItem['default-name'] ?? '';
+                    if (!empty($targetName) && ($iName === $targetName || $iDef === $targetName)) {
+                        $name = $iName;
+                        $matched = true;
+                        break;
+                    }
+                }
+                // Jika tidak cocok atau name kosong, pilih interface pertama yang aktif/running atau interface pertama
+                if (!$matched) {
+                    $runningIf = null;
+                    foreach ($allIfs as $ifItem) {
+                        if (($ifItem['running'] ?? 'false') === 'true') {
+                            $runningIf = $ifItem['name'];
+                            break;
+                        }
+                    }
+                    $name = $runningIf ?: ($allIfs[0]['name'] ?? 'ether1');
+                }
+            } else {
+                empty($name) ? ($name = 'ether1') : null;
+            }
 
             // Monitor traffic speed (Tx/Rx bps)
             $query = (new Query('/interface/monitor-traffic'))->equal('interface', $name)->equal('once');

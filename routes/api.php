@@ -16,7 +16,7 @@ Route::post('/ping', function(Request $request) {
     $ipAddress = $validated['ip_address'];
 
     try {
-        $serviceUrl = rtrim(env('PING_SERVICE_URL', 'http://127.0.0.1:5000'), '/') . '/ping';
+        $serviceUrl = rtrim(env('PING_SERVICE_URL', 'http://127.0.0.1:5005'), '/') . '/ping';
         $response = Http::timeout(5)->post($serviceUrl, [
             'ip_address' => $ipAddress,
         ]);

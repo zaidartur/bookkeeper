@@ -36,7 +36,7 @@ if (localStorage.getItem('toggle') !== null) {
 
 export function useLayout() {
     const setActiveMenuItem = (item) => {
-        layoutState.activeMenuItem = item.value || item;
+        layoutState.activeMenuItem = (item && item.value !== undefined) ? item.value : (item ?? null);
     };
 
     const toggleDarkMode = () => {

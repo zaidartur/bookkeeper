@@ -5,8 +5,13 @@ use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\IpAddressController;
 use App\Http\Controllers\MaintenanceController;
 use App\Http\Controllers\MonitoringController;
+use App\Http\Controllers\PetugasController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\SettingController;
 use App\Http\Controllers\TroubleController;
+use App\Models\CardContent;
+use App\Models\Gallery;
+use App\Models\ServiceContent;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Request;
@@ -29,8 +34,11 @@ Route::get('/', function () {
     $agent = Request::server('HTTP_USER_AGENT');
     // Log::info('api', [($myapi)]);
     $data = [
-        'myapi' => json_decode($myapi),
-        'agent' => $agent,
+        'myapi'     => json_decode($myapi),
+        'agent'     => $agent,
+        'cards'     => CardContent::where('is_active', true)->get(),
+        'galleries' => Gallery::where('is_active', true)->get(),
+        'services'  => ServiceContent::where('is_active', true)->get(),
     ];
 
     return Inertia::render('Landing', $data);
@@ -71,6 +79,8 @@ Route::prefix('/')->middleware('auth')->group(function() {
         Route::post('/assign', [IpAddressController::class, 'assign_ip'])->name('ip.assign');
         Route::post('/release', [IpAddressController::class, 'release_ip'])->name('ip.release');
         Route::post('/sync-mikrotik', [IpAddressController::class, 'sync_mikrotik'])->name('ip.sync_mikrotik');
+        Route::post('/scan-live/{uuid}', [IpAddressController::class, 'scan_live_subnet'])->name('ip.scan_live');
+        Route::post('/claim-all-active/{uuid}', [IpAddressController::class, 'claim_all_active_ips'])->name('ip.claim_all_active');
         Route::get('/pdf/{uuid}', [IpAddressController::class, 'export_pdf'])->name('ip.pdf');
 
         // Router Management & Test Connection
@@ -116,6 +126,40 @@ Route::prefix('/')->middleware('auth')->group(function() {
 
     Route::get('/bukutamu', [DashboardController::class, 'view_import'])->name('import.guest');
     Route::post('/bukutamu', [DashboardController::class, 'save_import'])->name('import.save');
+
+    // Data Petugas Management
+    Route::prefix('/petugas')->group(function() {
+        Route::get('/', [PetugasController::class, 'index'])->name('petugas');
+        Route::post('/save', [PetugasController::class, 'save'])->name('petugas.save');
+        Route::post('/update/{uuid}', [PetugasController::class, 'update'])->name('petugas.update');
+        Route::post('/delete/{uuid}', [PetugasController::class, 'delete'])->name('petugas.delete');
+    });
+
+    // Landing Submenu Management (Card, Galeri, Layanan)
+    Route::prefix('/landing')->group(function() {
+        // Card
+        Route::get('/card', [SettingController::class, 'landing_card'])->name('landing.card');
+        Route::post('/card/save', [SettingController::class, 'card_store'])->name('landing.card.save');
+        Route::post('/card/update/{id}', [SettingController::class, 'card_update'])->name('landing.card.update');
+        Route::post('/card/toggle/{id}', [SettingController::class, 'card_toggle'])->name('landing.card.toggle');
+        Route::post('/card/delete/{id}', [SettingController::class, 'card_delete'])->name('landing.card.delete');
+
+        // Galeri
+        Route::get('/gallery', [SettingController::class, 'landing_gallery'])->name('landing.gallery');
+        Route::post('/gallery/save', [SettingController::class, 'gallery_store'])->name('landing.gallery.save');
+        Route::post('/gallery/update/{id}', [SettingController::class, 'gallery_update'])->name('landing.gallery.update');
+        Route::post('/gallery/toggle/{id}', [SettingController::class, 'gallery_toggle'])->name('landing.gallery.toggle');
+        Route::post('/gallery/toggle-title/{id}', [SettingController::class, 'gallery_toggle_title'])->name('landing.gallery.toggle_title');
+        Route::post('/gallery/toggle-all-titles', [SettingController::class, 'gallery_toggle_all_titles'])->name('landing.gallery.toggle_all_titles');
+        Route::post('/gallery/delete/{id}', [SettingController::class, 'gallery_delete'])->name('landing.gallery.delete');
+
+        // Layanan
+        Route::get('/service', [SettingController::class, 'landing_service'])->name('landing.service');
+        Route::post('/service/save', [SettingController::class, 'service_store'])->name('landing.service.save');
+        Route::post('/service/update/{id}', [SettingController::class, 'service_update'])->name('landing.service.update');
+        Route::post('/service/toggle/{id}', [SettingController::class, 'service_toggle'])->name('landing.service.toggle');
+        Route::post('/service/delete/{id}', [SettingController::class, 'service_delete'])->name('landing.service.delete');
+    });
 });
 
 Route::get('/buku-tamu', [DashboardController::class, 'guestbook'])->name('guestbook');

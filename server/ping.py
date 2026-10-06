@@ -228,17 +228,105 @@ async def http_ping(request):
             'error': str(e)
         }, status_code=500)
 
+async def ping_single_fast(ip: str, timeout_ms: int = 350) -> tuple:
+    """Fast single-packet ping with short timeout for network discovery."""
+    try:
+        if os.name == 'nt':
+            args = ['ping', '-n', '1', '-w', str(timeout_ms), ip]
+        else:
+            timeout_sec = max(1, int(round(timeout_ms / 1000.0)))
+            args = ['ping', '-c', '1', '-W', str(timeout_sec), ip]
+
+        proc = await asyncio.create_subprocess_exec(
+            *args,
+            stdout=PIPE,
+            stderr=PIPE
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=max(2.0, (timeout_ms / 1000.0) + 1.0))
+        output = stdout.decode('latin-1', errors='ignore')
+
+        if proc.returncode == 0 and ('TTL=' in output or 'ttl=' in output):
+            match = re.search(r'(?:time|waktu)[=<]([0-9.]+)\s*ms', output, re.IGNORECASE)
+            lat = float(match.group(1)) if match else None
+            return (ip, True, lat)
+    except Exception:
+        pass
+    return (ip, False, None)
+
+async def http_scan_subnet(request):
+    """Parallel subnet scan / ping sweep endpoint."""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({'error': 'Invalid JSON body'}, status_code=400)
+
+    target_ips = body.get('ips', [])
+    network_ip = body.get('network_ip')
+    cidr = body.get('cidr')
+
+    if not target_ips and network_ip and cidr is not None:
+        try:
+            net = ipaddress.ip_network(f"{network_ip}/{cidr}", strict=False)
+            hosts = list(net.hosts())
+            if len(hosts) > 512:
+                hosts = hosts[:512]
+            target_ips = [str(h) for h in hosts]
+        except Exception as e:
+            return JSONResponse({'error': f"Invalid subnet definition: {e}"}, status_code=400)
+
+    if not target_ips:
+        return JSONResponse({'error': 'No valid IP targets provided'}, status_code=422)
+
+    valid_ips = [ip.strip() for ip in target_ips if is_valid_target(ip.strip())][:512]
+    timeout_ms = int(body.get('timeout_ms', 350))
+    concurrency = min(80, max(10, int(body.get('concurrency', 50))))
+
+    start_time = datetime.now()
+    sem = asyncio.Semaphore(concurrency)
+
+    async def bound_ping(ip):
+        async with sem:
+            return await ping_single_fast(ip, timeout_ms=timeout_ms)
+
+    tasks = [bound_ping(ip) for ip in valid_ips]
+    results = await asyncio.gather(*tasks)
+
+    active_map = {}
+    active_list = []
+    for ip, is_up, latency in results:
+        if is_up:
+            active_list.append(ip)
+            active_map[ip] = {
+                'ip': ip,
+                'is_reachable': True,
+                'latency_ms': latency
+            }
+
+    duration = (datetime.now() - start_time).total_seconds()
+
+    return JSONResponse({
+        'status': 'success',
+        'total_scanned': len(valid_ips),
+        'active_count': len(active_list),
+        'active_ips': active_list,
+        'details': active_map,
+        'duration_seconds': round(duration, 2),
+        'timestamp': datetime.now().isoformat()
+    })
+
 routes = [
     Route('/', http_health, methods=['GET']),
     Route('/health', http_health, methods=['GET']),
     Route('/ping', http_ping, methods=['POST']),
+    Route('/scan-subnet', http_scan_subnet, methods=['POST']),
+    Route('/scan', http_scan_subnet, methods=['POST']),
 ]
 
 starlette_app = Starlette(routes=routes)
 app = socketio.ASGIApp(sio, other_asgi_app=starlette_app)
 
 if __name__ == '__main__':
-    port = int(os.getenv('PING_SERVER_PORT', 5000))
+    port = int(os.getenv('PING_SERVER_PORT', 5005))
     host = os.getenv('PING_SERVER_HOST', '0.0.0.0')
     print(f"Starting Bookkeeper Ping Microservice on {host}:{port}...")
     uvicorn.run(app, host=host, port=port, log_level='info')

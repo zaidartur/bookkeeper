@@ -1,5 +1,5 @@
 <script setup>
-import { ref, defineProps, onMounted, onBeforeUnmount, computed, shallowRef, onUnmounted, watch } from 'vue'
+import { ref, defineProps, onMounted, onBeforeUnmount, computed, shallowRef, onUnmounted, watch, nextTick } from 'vue'
 import { Head, router as inertiaRouter } from '@inertiajs/vue3';
 import { FilterMatchMode } from '@primevue/core/api';
 import { useLayout } from '@/Layouts/composables/layout';
@@ -17,6 +17,7 @@ import Terminal from 'primevue/terminal';
 import TerminalService from 'primevue/terminalservice';
 
 const props = defineProps({
+    router: [Object, Array, String],
     routers: [Object, Array, String],
     routers_list: Array,
     subnets: Array,
@@ -49,8 +50,11 @@ const gridStats = ref({
 })
 const loadingGrid = ref(false)
 const searchIpQuery = ref('')
-const filterType = ref('all') // 'all', 'available', 'assigned', 'live'
+const filterType = ref('all') // 'all', 'available', 'assigned', 'unregistered_active', 'live', 'offline'
+const gridDensity = ref('compact') // 'compact' (-35% size) or 'normal'
 const syncingMikrotik = ref(false)
+const scanningSubnet = ref(false)
+const claimingIps = ref(false)
 
 // Modals
 const ipDetailDialog = ref(false)
@@ -173,14 +177,16 @@ const filteredCells = computed(() => {
     let cells = gridCells.value
     if (!cells || cells.length === 0) return []
 
-    // Search query filter (matches IP or Device name)
+    // Search query filter (matches IP, host octet, Device name, MAC, or category)
     if (searchIpQuery.value && searchIpQuery.value.trim() !== '') {
         const q = searchIpQuery.value.toLowerCase().trim()
         cells = cells.filter(c => {
             const matchIp = c.ip.toLowerCase().includes(q)
+            const matchHost = String(c.host).toLowerCase().includes(q)
             const matchDevice = c.assignment?.device?.toLowerCase().includes(q)
             const matchMac = c.assignment?.mac_address?.toLowerCase().includes(q)
-            return matchIp || matchDevice || matchMac
+            const matchKategori = c.assignment?.kategori?.toLowerCase().includes(q)
+            return matchIp || matchHost || matchDevice || matchMac || matchKategori
         })
     }
 
@@ -188,18 +194,22 @@ const filteredCells = computed(() => {
     if (filterType.value === 'available') {
         cells = cells.filter(c => c.type === 'available')
     } else if (filterType.value === 'assigned') {
-        cells = cells.filter(c => c.type === 'assigned')
+        cells = cells.filter(c => c.type === 'assigned' || (c.type === 'gateway' && c.assignment))
+    } else if (filterType.value === 'unregistered_active') {
+        cells = cells.filter(c => c.type === 'unregistered_active')
     } else if (filterType.value === 'live') {
-        cells = cells.filter(c => c.is_live)
+        cells = cells.filter(c => c.live_status === 'online' || c.is_live)
+    } else if (filterType.value === 'offline') {
+        cells = cells.filter(c => c.live_status === 'offline' && (c.type === 'assigned' || c.type === 'gateway'))
     }
 
     return cells
 })
 
-// Table of only assigned IPs on this subnet
+// Table of only assigned IPs on this subnet (termasuk Gateway yang teralokasi)
 const assignedTableData = computed(() => {
     return gridCells.value
-        .filter(c => c.type === 'assigned' && c.assignment)
+        .filter(c => Boolean(c.assignment))
         .map(c => ({
             host: c.host,
             ip: c.ip,
@@ -212,6 +222,8 @@ const assignedTableData = computed(() => {
             last_seen: c.assignment.last_seen,
             keterangan: c.assignment.keterangan,
             is_live: c.is_live,
+            live_status: c.live_status,
+            is_gateway: c.is_gateway || c.type === 'gateway',
             assignment: c.assignment,
         }))
 })
@@ -230,6 +242,19 @@ const openCellDetail = (cell) => {
             keterangan: cell.assignment.keterangan || '',
         }
         isEditing.value = false
+    } else if (cell.type === 'unregistered_active') {
+        const octets = cell.ip.split('.')
+        const lastOct = octets[octets.length - 1]
+        formAssignment.value = {
+            uuid_ip: currentSubnet.value.uuid,
+            assigned_ip: cell.ip,
+            device: `Discovered Host (.${lastOct})`,
+            kategori: 'PC/Laptop',
+            status: 'Static',
+            mac_address: '',
+            keterangan: 'Host aktif terdeteksi saat audit ICMP ping',
+        }
+        isEditing.value = true
     } else {
         formAssignment.value = {
             uuid_ip: currentSubnet.value.uuid,
@@ -349,6 +374,57 @@ const syncMikrotik = async () => {
         })
     } finally {
         syncingMikrotik.value = false
+    }
+}
+
+// Audit host live via ICMP ping sweep
+const auditSubnetLive = async () => {
+    if (!selectedSubnetUuid.value) return
+    scanningSubnet.value = true
+    try {
+        const response = await axios.post(`/network/scan-live/${selectedSubnetUuid.value}`)
+        toast.add({
+            severity: 'success',
+            summary: 'Audit Host Selesai',
+            detail: response.data.message,
+            life: 5000,
+        })
+        await loadSubnetGrid(selectedSubnetUuid.value)
+    } catch (error) {
+        toast.add({
+            severity: 'error',
+            summary: 'Gagal Audit Host',
+            detail: error.response?.data?.message || 'Tidak dapat memindai host di subnet.',
+            life: 4000,
+        })
+    } finally {
+        scanningSubnet.value = false
+    }
+}
+
+// Auto-register all discovered unregistered active hosts
+const claimAllActiveIps = async () => {
+    if (!selectedSubnetUuid.value) return
+    claimingIps.value = true
+    try {
+        const response = await axios.post(`/network/claim-all-active/${selectedSubnetUuid.value}`)
+        toast.add({
+            severity: 'success',
+            summary: 'Pendaftaran Host Berhasil',
+            detail: response.data.message,
+            life: 5000,
+        })
+        await loadSubnetGrid(selectedSubnetUuid.value)
+        refreshSubnetList()
+    } catch (error) {
+        toast.add({
+            severity: 'error',
+            summary: 'Gagal Mendaftarkan Host',
+            detail: error.response?.data?.message || 'Gagal mendaftarkan host aktif.',
+            life: 4000,
+        })
+    } finally {
+        claimingIps.value = false
     }
 }
 
@@ -518,29 +594,82 @@ const refreshRouterList = () => {
 // ==========================================
 let socket
 const lists = ref(Array())
-const ethernet = ref(null)
-const ethername = ref(null)
 const chartRefs = shallowRef([])
 const chartInstances = shallowRef([])
 const options = shallowRef([])
 const timerLists = ref([])
-const itemLists = ref([])
-const cpu = ref(0)
-const memory = ref(null)
-const disk = ref(null)
-const uptime = ref(null)
 
-// Real-time Upstream & Downstream speed values
-const currentLiveRx = ref('0 B/s') // Downstream
-const currentLiveTx = ref('0 B/s') // Upstream
-const currentLiveRxBps = ref(0)
-const currentLiveTxBps = ref(0)
+// Per-router isolated state (Consumption, Speeds, Interfaces, Menu, and Resources)
+const routerStates = ref({})
 
-// Bandwidth Consumption Analytics (Today, Weekly, Monthly)
-const consumptionStats = ref({
-    today: { total: '0 B', formatted: '0 B', rx_fmt: '0 B', tx_fmt: '0 B' },
-    weekly: { total: '0 B', formatted: '0 B', rx_fmt: '0 B', tx_fmt: '0 B' },
-    monthly: { total: '0 B', formatted: '0 B', rx_fmt: '0 B', tx_fmt: '0 B' },
+const getRouterState = (id) => {
+    if (id === undefined || id === null) return null
+    if (!routerStates.value[id]) {
+        routerStates.value[id] = {
+            selectedInterface: null,
+            selectedDefaultName: null,
+            rxFmt: '0 B/s',
+            txFmt: '0 B/s',
+            rxBps: 0,
+            txBps: 0,
+            cpu: 0,
+            memory: '-',
+            disk: '-',
+            uptime: '-',
+            consumption: {
+                today: { total: 0, formatted: '0 B', rx_fmt: '0 B', tx_fmt: '0 B', rx: 0, tx: 0 },
+                weekly: { total: 0, formatted: '0 B', rx_fmt: '0 B', tx_fmt: '0 B', rx: 0, tx: 0 },
+                monthly: { total: 0, formatted: '0 B', rx_fmt: '0 B', tx_fmt: '0 B', rx: 0, tx: 0 },
+            },
+            interfaces: [],
+            menuItems: [],
+        }
+    }
+    return routerStates.value[id]
+}
+
+const isInterfaceRunning = (routerId) => {
+    const rState = getRouterState(routerId)
+    if (!rState || !rState.interfaces || !rState.selectedInterface) return false
+    const iface = rState.interfaces.find(i => i.name === rState.selectedInterface || i.default_name === rState.selectedInterface)
+    return iface ? (iface.running === 'true' || iface.running === true) : false
+}
+
+const formatBytesStatic = (bytes) => {
+    const num = Number(bytes)
+    if (!num || isNaN(num) || num <= 0) return '0 B'
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+    const i = Math.min(Math.floor(Math.log(num) / Math.log(1024)), sizes.length - 1)
+    return parseFloat((num / Math.pow(1024, i)).toFixed(2)) + ' ' + sizes[i]
+}
+
+// Total aggregate consumption across all active routers
+const totalConsumption = computed(() => {
+    let today = 0, todayRx = 0, todayTx = 0
+    let weekly = 0, weeklyRx = 0, weeklyTx = 0
+    let monthly = 0, monthlyRx = 0, monthlyTx = 0
+
+    Object.values(routerStates.value).forEach(st => {
+        if (st && st.consumption) {
+            today += Number(st.consumption.today?.total || 0)
+            todayRx += Number(st.consumption.today?.rx || 0)
+            todayTx += Number(st.consumption.today?.tx || 0)
+
+            weekly += Number(st.consumption.weekly?.total || 0)
+            weeklyRx += Number(st.consumption.weekly?.rx || 0)
+            weeklyTx += Number(st.consumption.weekly?.tx || 0)
+
+            monthly += Number(st.consumption.monthly?.total || 0)
+            monthlyRx += Number(st.consumption.monthly?.rx || 0)
+            monthlyTx += Number(st.consumption.monthly?.tx || 0)
+        }
+    })
+
+    return {
+        today: { formatted: formatBytesStatic(today), rx_fmt: formatBytesStatic(todayRx), tx_fmt: formatBytesStatic(todayTx) },
+        weekly: { formatted: formatBytesStatic(weekly), rx_fmt: formatBytesStatic(weeklyRx), tx_fmt: formatBytesStatic(weeklyTx) },
+        monthly: { formatted: formatBytesStatic(monthly), rx_fmt: formatBytesStatic(monthlyRx), tx_fmt: formatBytesStatic(monthlyTx) },
+    }
 })
 
 const networkDlg = ref(false)
@@ -568,15 +697,40 @@ const initRouterData = () => {
     options.value = []
     let parsing = []
     try {
-        parsing = typeof props.routers === 'string' ? JSON.parse(props.routers) : (props.routers || [])
+        const raw = props.routers || props.router || []
+        parsing = typeof raw === 'string' ? JSON.parse(raw) : (raw || [])
     } catch (e) {
         parsing = []
     }
     if (parsing.length > 0) {
-        parsing.map((ls) => {
+        parsing.forEach((ls, lIndex) => {
             lists.value.push(ls)
-            const init = initOption()
-            options.value.push(init)
+            options.value.push(initOption())
+
+            if (ls && ls.data && ls.data.length > 0) {
+                const rState = getRouterState(ls.id)
+                rState.interfaces = ls.data
+                if (ls.consumption) {
+                    rState.consumption = ls.consumption
+                }
+
+                // Auto-select first running interface or first interface
+                if (!rState.selectedInterface) {
+                    const runningIf = ls.data.find(i => (i.running === 'true' || i.running === true) && i.disabled !== 'true')
+                    const firstIf = runningIf || ls.data[0]
+                    rState.selectedInterface = firstIf.name
+                    rState.selectedDefaultName = firstIf.default_name || firstIf.name
+                }
+
+                // Build menu items specifically for THIS router
+                rState.menuItems = ls.data.map((item) => ({
+                    label: `${item.name} (${item.type}${item.running === 'true' || item.running === true ? ' • LINK UP' : ''})`,
+                    icon: (item.running === 'true' || item.running === true) ? 'pi pi-bolt text-emerald-500' : 'pi pi-minus text-slate-400',
+                    command: () => {
+                        changeRouterGraph(ls.id, lIndex, item.name, item.default_name || item.name)
+                    }
+                }))
+            }
         })
     }
 }
@@ -588,25 +742,15 @@ onMounted(() => {
 
     initRouterData()
     initCharts()
-    itemLists.value = []
-    lists.value.forEach((ls, i) => {
-        if (ls && ls.data && ls.data.length > 0) {
-            i === 0 ? (ethername.value = ls.data[0].default_name) : null
-            i === 0 ? (ethernet.value = ls.data[0].name) : null
-            setUpdate(ls.id)
 
-            ls.data.map((item) => {
-                itemLists.value.push({
-                    label: item.name,
-                    command: () => {
-                        changeGraph(ls.id, item.name, item.default_name)
-                    },
-                })
-            })
+    // Start interval monitoring for all active routers
+    lists.value.forEach((ls, lIndex) => {
+        if (ls && ls.id !== undefined && ls.id !== null) {
+            setUpdate(ls.id, lIndex)
         }
     })
 
-    const pingSocketUrl = import.meta.env.VITE_PING_SOCKET_URL || (window.location.protocol + '//' + window.location.hostname + ':5000');
+    const pingSocketUrl = import.meta.env.VITE_PING_SOCKET_URL || (window.location.protocol + '//' + window.location.hostname + ':5005');
     socket = io(pingSocketUrl, {
         transports: ['websocket', 'polling']
     });
@@ -654,77 +798,79 @@ onBeforeUnmount(() => {
     disposeCharts()
 })
 
-const setUpdate = async (id) => {
-    if (id > -1) {
-        clearInterval(timerLists.value[id])
-        await axios.post('/network/graphic', { id: id, name: ethername.value }).then((response) => {
+const setUpdate = async (id, index) => {
+    if (id !== undefined && id !== null && id > -1) {
+        if (timerLists.value[id]) {
+            clearInterval(timerLists.value[id])
+        }
+        const rState = getRouterState(id)
+        const targetIface = rState?.selectedInterface || ''
+        try {
+            const response = await axios.post('/network/graphic', { id: id, name: targetIface })
             const res = response.data
             if (res) {
-                updateInterval(res.time, res.rx, res.tx)
-                currentLiveRx.value = res.rx_fmt || '0 B/s'
-                currentLiveTx.value = res.tx_fmt || '0 B/s'
-                currentLiveRxBps.value = res.rx || 0
-                currentLiveTxBps.value = res.tx || 0
+                updateChartForRouter(index, res.time, res.rx, res.tx)
+                if (rState) {
+                    rState.rxFmt = res.rx_fmt || '0 B/s'
+                    rState.txFmt = res.tx_fmt || '0 B/s'
+                    rState.rxBps = res.rx || 0
+                    rState.txBps = res.tx || 0
 
-                if (res.consumption) {
-                    consumptionStats.value = res.consumption
+                    if (res.consumption) {
+                        rState.consumption = res.consumption
+                    }
+
+                    if (res.resource) {
+                        const rsc = res.resource
+                        rState.cpu    = rsc.cpu_load
+                        rState.memory = rsc.memory
+                        rState.disk   = rsc.hdd
+                        rState.uptime = rsc.uptime
+                    }
                 }
 
-                if (res.resource) {
-                    const rsc = res.resource
-                    cpu.value    = rsc.cpu_load
-                    memory.value = rsc.memory
-                    disk.value   = rsc.hdd
-                    uptime.value = rsc.uptime
-                }
                 timerLists.value[id] = setInterval(() => {
-                    setUpdate(id)
-                }, 8000)
+                    setUpdate(id, index)
+                }, 5000)
             }
-        }).catch(function (error) {
-            // silent retry
-        })
-    }
-}
-
-const updateInterval = (label, rx, tx) => {
-    updateChart(label, rx, tx)
-    chartInstances.value.forEach((instance, index) => {
-        if (instance && options.value[index]) {
-            const { animationDuration, animationEasing, ...rest } = options.value[index];
-            instance.setOption({
-                ...rest,
-                animation: true
-            }, true);
+        } catch (error) {
+            timerLists.value[id] = setInterval(() => {
+                setUpdate(id, index)
+            }, 8000)
         }
-    });
+    }
 }
 
 // Vibrant theme colors for ECharts (Downstream: Cyan/Blue, Upstream: Violet/Rose)
 const colors = ['#06b6d4', '#ec4899'];
 const formatter = (bytes) => {
+    const num = Number(bytes)
+    if (!num || isNaN(num) || num === 0) return '0 bps'
     const sizes = ['bps', 'Kbps', 'Mbps', 'Gbps', 'Tbps']
-    if (bytes == 0) return '0 bps'
-    const i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)))
-    return parseFloat((bytes / Math.pow(1024, i)).toFixed(2)) + ' ' + sizes[i]
+    const i = parseInt(Math.floor(Math.log(num) / Math.log(1024)))
+    const clampedI = Math.min(i, sizes.length - 1)
+    return parseFloat((num / Math.pow(1024, clampedI)).toFixed(2)) + ' ' + sizes[clampedI]
 }
 
 const initOption = () => {
+    const isDark = Boolean(isDarkMode.value)
     return {
         color: colors,
         updates: 0,
         tooltip: {
             trigger: 'axis',
             axisPointer: { type: 'cross' },
-            backgroundColor: isDarkMode.value ? '#1e293b' : '#ffffff',
-            borderColor: isDarkMode.value ? '#334155' : '#e2e8f0',
-            textStyle: { color: isDarkMode.value ? '#f8fafc' : '#0f172a' },
+            backgroundColor: isDark ? '#1e293b' : '#ffffff',
+            borderColor: isDark ? '#334155' : '#e2e8f0',
+            textStyle: { color: isDark ? '#f8fafc' : '#0f172a' },
             padding: 12,
             formatter: function (params) {
-                const _rx = formatter(params[0].value)
-                const _tx = formatter(params[1].value)
+                if (!params || !params.length) return ''
+                const _rx = formatter(params[0]?.value || 0)
+                const _tx = formatter(params[1]?.value || 0)
+                const _time = params[0]?.axisValueLabel || params[0]?.name || '-'
                 return `<div style="font-size: 11px;">
-                    <b>Waktu: ${params[0].axisValueLabel}</b><br/>
+                    <b>Waktu: ${_time}</b><br/>
                     <span style="color:#06b6d4; font-weight:bold;">● Downstream (Rx):</span> ${_rx}<br/>
                     <span style="color:#ec4899; font-weight:bold;">● Upstream (Tx):</span> ${_tx}
                 </div>`
@@ -732,24 +878,24 @@ const initOption = () => {
         },
         legend: {
             data: ['Downstream (Rx)', 'Upstream (Tx)'],
-            textStyle: { color: isDarkMode.value ? '#cbd5e1' : '#475569' },
+            textStyle: { color: isDark ? '#cbd5e1' : '#475569' },
             top: 10,
         },
-        grid: { top: 60, bottom: 40, left: 75, right: 20 },
+        grid: { top: 60, bottom: 40, left: 85, right: 25 },
         xAxis: {
             type: 'category',
             axisTick: { alignWithLabel: true },
-            axisLine: { lineStyle: { color: isDarkMode.value ? '#475569' : '#cbd5e1' } },
-            axisLabel: { color: isDarkMode.value ? '#94a3b8' : '#64748b' },
+            axisLine: { lineStyle: { color: isDark ? '#475569' : '#cbd5e1' } },
+            axisLabel: { color: isDark ? '#94a3b8' : '#64748b' },
             data: []
         },
         yAxis: [
             {
                 type: 'value',
-                boundaryGap: [0, '100%'],
-                splitLine: { lineStyle: { color: isDarkMode.value ? '#334155' : '#f1f5f9' } },
+                boundaryGap: ['0%', '20%'],
+                splitLine: { lineStyle: { color: isDark ? '#334155' : '#f1f5f9' } },
                 axisLabel: {
-                    color: isDarkMode.value ? '#94a3b8' : '#64748b',
+                    color: isDark ? '#94a3b8' : '#64748b',
                     formatter: function (v) { return formatter(v) }
                 }
             }
@@ -787,25 +933,70 @@ const initOption = () => {
     }
 }
 
+const getOrInitChart = (index) => {
+    const el = chartRefs.value[index]
+    if (!el) return null
+    if (el.clientWidth === 0 || el.clientHeight === 0) return null
+
+    let instance = chartInstances.value[index]
+    if (!instance) {
+        const existing = echarts.getInstanceByDom(el)
+        if (existing) {
+            instance = existing
+        } else {
+            instance = echarts.init(el)
+        }
+        chartInstances.value[index] = instance
+    }
+    if (options.value[index]) {
+        instance.setOption(options.value[index])
+    }
+    return instance
+}
+
+const renderAllCharts = () => {
+    nextTick(() => {
+        lists.value.forEach((ls, index) => {
+            if (ls) {
+                const instance = getOrInitChart(index)
+                if (instance) {
+                    instance.resize()
+                    if (options.value[index]) {
+                        instance.setOption(options.value[index], true)
+                    }
+                }
+            }
+        })
+    })
+}
+
 const setChartRef = (el, index) => {
-    chartRefs.value[index] = el
+    if (el) {
+        chartRefs.value[index] = el
+        nextTick(() => {
+            getOrInitChart(index)
+        })
+    } else {
+        if (chartInstances.value[index]) {
+            chartInstances.value[index].dispose()
+            chartInstances.value[index] = null
+        }
+        delete chartRefs.value[index]
+    }
 }
 
 const initCharts = () => {
-    chartInstances.value = options.value.map((chart, index) => {
-        if (chartRefs.value[index]) {
-            const instance = echarts.init(chartRefs.value[index])
-            instance.setOption(chart)
-            return instance
-        }
-        return null
-    })
+    renderAllCharts()
     window.addEventListener('resize', resizeCharts)
 }
 
 const resizeCharts = () => {
-    chartInstances.value.forEach(instance => {
-        if (instance) instance.resize()
+    chartInstances.value.forEach((instance, index) => {
+        if (instance) {
+            instance.resize()
+        } else {
+            getOrInitChart(index)
+        }
     })
 }
 
@@ -817,19 +1008,43 @@ const disposeCharts = () => {
     chartInstances.value = []
 }
 
-const updateChart = (label, rx, tx) => {
-    const maxPoints = 12
-    options.value.forEach(chart => {
-        chart.updates++
-        if (chart.xAxis.data.length >= maxPoints) {
-            chart.xAxis.data.shift()
-            chart.series.forEach(s => s.data.shift())
-        }
-        chart.xAxis.data.push(label)
-        chart.series[0].data.push(parseInt(rx))
-        chart.series[1].data.push(parseInt(tx))
-    })
+const updateChartForRouter = (index, label, rx, tx) => {
+    const maxPoints = 15
+    const chart = options.value[index]
+    if (!chart) return
+    chart.updates++
+    if (chart.xAxis.data.length >= maxPoints) {
+        chart.xAxis.data.shift()
+        chart.series.forEach(s => s.data.shift())
+    }
+    chart.xAxis.data.push(label)
+    chart.series[0].data.push(parseInt(rx) || 0)
+    chart.series[1].data.push(parseInt(tx) || 0)
+
+    const instance = chartInstances.value[index] || getOrInitChart(index)
+    if (instance) {
+        const { animationDuration, animationEasing, ...rest } = chart
+        instance.setOption({
+            ...rest,
+            animation: true
+        }, true)
+    }
 }
+
+watch(activeTab, (newTab) => {
+    if (newTab === 'router') {
+        nextTick(() => {
+            setTimeout(() => {
+                renderAllCharts()
+            }, 60)
+        })
+    }
+})
+
+watch(isDarkMode, () => {
+    options.value = options.value.map(() => initOption())
+    renderAllCharts()
+})
 
 const showNetwork = (router, name) => {
     loading.value = true
@@ -844,14 +1059,19 @@ const showNetwork = (router, name) => {
     }
 }
 
-const changeGraph = (id, label, name) => {
-    ethernet.value = label
-    ethername.value = name
-    options.value.forEach(chart => {
+const changeRouterGraph = (id, index, label, name) => {
+    const rState = getRouterState(id)
+    if (rState) {
+        rState.selectedInterface = label
+        rState.selectedDefaultName = name || label
+    }
+    const chart = options.value[index]
+    if (chart) {
         chart.updates = 0
         chart.xAxis.data = []
         chart.series.forEach(s => s.data = [])
-    })
+    }
+    setUpdate(id, index)
 }
 
 const ping = (ip) => {
@@ -972,6 +1192,23 @@ const stop = (ip) => {
                             @click="newSubnetDialog = true"
                         />
                         <Button
+                            label="Audit Host (Ping Sweep)"
+                            icon="pi pi-radar"
+                            severity="help"
+                            :loading="scanningSubnet"
+                            @click="auditSubnetLive"
+                            v-tooltip.bottom="'Pindai status ICMP ping seluruh host live secara paralel (cepat ~2s)'"
+                        />
+                        <Button
+                            v-if="gridStats.unregistered_active > 0"
+                            :label="`Daftarkan ${gridStats.unregistered_active} Host Liar`"
+                            icon="pi pi-user-plus"
+                            severity="warn"
+                            :loading="claimingIps"
+                            @click="claimAllActiveIps"
+                            v-tooltip.bottom="'Daftarkan semua IP aktif tak terdaftar ke inventaris IPAM'"
+                        />
+                        <Button
                             label="Sinkronisasi MikroTik"
                             icon="pi pi-sync"
                             severity="info"
@@ -1001,7 +1238,7 @@ const stop = (ip) => {
         </Card>
 
         <!-- KPI SUMMARY CARDS (Adaptive Light/Dark Mode) -->
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
             <!-- Total Kapasitas -->
             <div class="p-4 bg-surface-0 dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700/60 shadow-sm flex items-center justify-between transition-colors">
                 <div>
@@ -1016,17 +1253,34 @@ const stop = (ip) => {
                 </div>
             </div>
 
-            <!-- Terpakai (Assigned) -->
+            <!-- Terdaftar di IPAM (Assigned) -->
             <div class="p-4 bg-surface-0 dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700/60 shadow-sm flex items-center justify-between transition-colors">
                 <div>
-                    <span class="text-xs font-semibold uppercase tracking-wider text-rose-500">Terpakai (In Use)</span>
+                    <span class="text-xs font-semibold uppercase tracking-wider text-rose-500">Terdaftar (IPAM)</span>
                     <h3 class="text-2xl font-black text-rose-600 dark:text-rose-400 mt-1">
                         {{ gridStats.used }} <span class="text-xs font-normal text-muted-color">Host</span>
                     </h3>
-                    <span class="text-xs text-muted-color">Dialokasikan ke perangkat</span>
+                    <div class="text-[11px] text-muted-color mt-0.5 flex items-center gap-2">
+                        <span class="text-emerald-500 font-semibold">🟢 {{ gridStats.online || 0 }} On</span>
+                        <span class="text-slate-400">⚪ {{ gridStats.offline || 0 }} Off</span>
+                    </div>
                 </div>
                 <div class="w-12 h-12 rounded-xl bg-rose-50 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400 flex items-center justify-center text-xl">
                     <i class="pi pi-desktop"></i>
+                </div>
+            </div>
+
+            <!-- Host Liar / Belum Dicatat (Unregistered Active) -->
+            <div class="p-4 bg-surface-0 dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700/60 shadow-sm flex items-center justify-between transition-colors">
+                <div>
+                    <span class="text-xs font-semibold uppercase tracking-wider text-amber-500">Host Liar (Aktif)</span>
+                    <h3 class="text-2xl font-black text-amber-500 mt-1">
+                        {{ gridStats.unregistered_active || 0 }} <span class="text-xs font-normal text-muted-color">IP</span>
+                    </h3>
+                    <span class="text-[11px] text-muted-color">Merespons ping / belum dicatat</span>
+                </div>
+                <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400 flex items-center justify-center text-xl">
+                    <i class="pi pi-exclamation-triangle"></i>
                 </div>
             </div>
 
@@ -1037,7 +1291,7 @@ const stop = (ip) => {
                     <h3 class="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
                         {{ gridStats.free }} <span class="text-xs font-normal text-muted-color">IP</span>
                     </h3>
-                    <span class="text-xs text-muted-color">Siap dialokasikan</span>
+                    <span class="text-xs text-muted-color">Bersih & siap alokasi</span>
                 </div>
                 <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 flex items-center justify-center text-xl">
                     <i class="pi pi-check-circle"></i>
@@ -1105,13 +1359,44 @@ const stop = (ip) => {
                                 @click="filterType = 'available'"
                                 :class="['px-2.5 py-1 text-xs rounded font-medium', filterType === 'available' ? 'bg-surface-0 dark:bg-surface-700 shadow text-emerald-500' : 'text-muted-color']"
                             >
-                                Tersedia
+                                Bebas
+                            </button>
+                            <button
+                                @click="filterType = 'unregistered_active'"
+                                :class="['px-2.5 py-1 text-xs rounded font-medium', filterType === 'unregistered_active' ? 'bg-surface-0 dark:bg-surface-700 shadow text-amber-500 font-bold' : 'text-muted-color']"
+                            >
+                                ⚠️ Liar (Aktif)
                             </button>
                             <button
                                 @click="filterType = 'live'"
-                                :class="['px-2.5 py-1 text-xs rounded font-medium', filterType === 'live' ? 'bg-surface-0 dark:bg-surface-700 shadow text-sky-500' : 'text-muted-color']"
+                                :class="['px-2.5 py-1 text-xs rounded font-medium', filterType === 'live' ? 'bg-surface-0 dark:bg-surface-700 shadow text-emerald-500' : 'text-muted-color']"
                             >
-                                ⚡ Live
+                                🟢 Online
+                            </button>
+                            <button
+                                @click="filterType = 'offline'"
+                                :class="['px-2.5 py-1 text-xs rounded font-medium', filterType === 'offline' ? 'bg-surface-0 dark:bg-surface-700 shadow text-slate-400' : 'text-muted-color']"
+                            >
+                                ⚪ Offline
+                            </button>
+                        </div>
+                        <!-- Grid Density Toggle -->
+                        <div class="flex items-center border border-surface-200 dark:border-surface-700 rounded-lg p-0.5 bg-surface-50 dark:bg-surface-800">
+                            <button
+                                @click="gridDensity = 'compact'"
+                                :class="['px-2.5 py-1 text-xs rounded font-medium flex items-center gap-1 transition-all', gridDensity === 'compact' ? 'bg-surface-0 dark:bg-surface-700 shadow text-primary font-bold' : 'text-muted-color']"
+                                v-tooltip.bottom="'Ukuran Kompak (-35% hemat ruang layar)'"
+                            >
+                                <i class="pi pi-table text-[10px]"></i>
+                                Kompak (-35%)
+                            </button>
+                            <button
+                                @click="gridDensity = 'normal'"
+                                :class="['px-2.5 py-1 text-xs rounded font-medium flex items-center gap-1 transition-all', gridDensity === 'normal' ? 'bg-surface-0 dark:bg-surface-700 shadow text-primary font-bold' : 'text-muted-color']"
+                                v-tooltip.bottom="'Ukuran Standar'"
+                            >
+                                <i class="pi pi-th-large text-[10px]"></i>
+                                Normal
                             </button>
                         </div>
                     </div>
@@ -1120,26 +1405,34 @@ const stop = (ip) => {
 
             <template #content>
                 <!-- Color Legend -->
-                <div class="flex flex-wrap items-center gap-4 py-3 text-xs text-muted-color">
+                <div class="flex flex-wrap items-center gap-4 py-3 text-xs text-muted-color border-b border-surface-100 dark:border-surface-800 mb-3">
                     <div class="flex items-center gap-1.5">
-                        <span class="w-3.5 h-3.5 rounded bg-emerald-500 border border-emerald-600 inline-block"></span>
-                        <span>Tersedia (Free)</span>
+                        <span class="w-3.5 h-3.5 rounded bg-surface-0 dark:bg-surface-800 border border-surface-300 dark:border-surface-600 inline-block"></span>
+                        <span>Bebas (Bersih)</span>
                     </div>
                     <div class="flex items-center gap-1.5">
-                        <span class="w-3.5 h-3.5 rounded bg-rose-500 border border-rose-600 inline-block"></span>
-                        <span>Terpakai (In Use)</span>
+                        <span class="w-3.5 h-3.5 rounded bg-rose-500 border-2 border-rose-300 inline-block"></span>
+                        <span>Terpakai & Online (🟢 Reply)</span>
                     </div>
                     <div class="flex items-center gap-1.5">
-                        <span class="w-3.5 h-3.5 rounded bg-amber-500 border border-amber-600 inline-block"></span>
-                        <span>Gateway / Default (.1)</span>
+                        <span class="w-3.5 h-3.5 rounded bg-rose-950/40 border border-dashed border-rose-500/50 inline-block"></span>
+                        <span>Terpakai & Offline (⚪ RTO/Mati)</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <span class="w-3.5 h-3.5 rounded bg-amber-500 border border-amber-300 inline-block animate-pulse"></span>
+                        <span class="font-bold text-amber-600 dark:text-amber-400">Host Liar / Belum Dicatat (⚠️ Reply)</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <span class="w-3.5 h-3.5 rounded bg-blue-600 border border-blue-400 inline-block"></span>
+                        <span>Gateway / Router</span>
                     </div>
                     <div class="flex items-center gap-1.5">
                         <span class="w-3.5 h-3.5 rounded bg-slate-300 dark:bg-slate-700 border border-slate-400 dark:border-slate-600 inline-block"></span>
-                        <span>Network (.0) / Broadcast (.255)</span>
+                        <span>Network / Broadcast</span>
                     </div>
-                    <div class="flex items-center gap-1.5">
-                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300">⚡ Live</span>
-                        <span>Aktif di MikroTik DHCP/ARP</span>
+                    <div v-if="gridStats.last_scanned_at" class="ml-auto flex items-center gap-1 text-[11px] text-primary">
+                        <i class="pi pi-check-circle"></i>
+                        <span>Audit Terakhir: <b>{{ gridStats.last_scanned_at }}</b></span>
                     </div>
                 </div>
 
@@ -1149,36 +1442,61 @@ const stop = (ip) => {
                     <p class="text-sm">Menyusun grid alokasi IP subnet...</p>
                 </div>
 
-                <!-- 256 CELL INTERACTIVE GRID -->
+                <!-- 256 CELL INTERACTIVE GRID (RESPONSIVE DENSITY) -->
                 <div
                     v-else
-                    class="grid grid-cols-8 sm:grid-cols-12 md:grid-cols-16 gap-1.5 p-3 bg-surface-50 dark:bg-surface-950/40 rounded-xl border border-surface-200/80 dark:border-surface-800"
+                    :class="[
+                        'grid rounded-xl border border-surface-200/80 dark:border-surface-800 transition-all duration-200',
+                        gridDensity === 'compact'
+                            ? 'grid-cols-10 sm:grid-cols-16 md:grid-cols-20 lg:grid-cols-24 gap-1 p-2 bg-surface-50/70 dark:bg-surface-950/50'
+                            : 'grid-cols-8 sm:grid-cols-12 md:grid-cols-16 gap-1.5 p-3 bg-surface-50 dark:bg-surface-950/40'
+                    ]"
                 >
                     <div
                         v-for="cell in filteredCells"
                         :key="cell.ip"
                         @click="openCellDetail(cell)"
                         :class="[
-                            'relative group cursor-pointer aspect-square rounded-lg flex flex-col items-center justify-center font-mono text-xs transition-all duration-150 select-none shadow-sm',
-                            cell.type === 'available' ? 'bg-surface-0 dark:bg-surface-800 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500 hover:text-white hover:scale-110 hover:shadow-md hover:z-10' : '',
-                            cell.type === 'assigned' ? 'bg-rose-500 text-white border border-rose-600 font-semibold hover:bg-rose-600 hover:scale-110 hover:shadow-md hover:z-10' : '',
-                            cell.type === 'gateway' ? 'bg-amber-500 text-white border border-amber-600 font-bold hover:bg-amber-600 hover:scale-110 hover:shadow-md hover:z-10' : '',
-                            (cell.type === 'network' || cell.type === 'broadcast') ? 'bg-slate-300 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-400 dark:border-slate-700 opacity-80 cursor-not-allowed' : '',
+                            'relative group cursor-pointer aspect-square flex flex-col items-center justify-center font-mono transition-all duration-150 select-none shadow-sm',
+                            gridDensity === 'compact' ? 'rounded-md p-0.5' : 'rounded-lg p-1',
+                            cell.type === 'available' ? 'bg-surface-0 dark:bg-surface-800 border border-surface-200 dark:border-surface-700/80 text-muted-color hover:border-emerald-500 hover:text-emerald-500 hover:scale-110 hover:shadow-md hover:z-10' : '',
+                            cell.type === 'assigned' && (cell.live_status === 'online' || (cell.live_status === 'unverified' && cell.is_live)) ? 'bg-rose-500 text-white border-2 border-rose-300 dark:border-rose-400 font-bold shadow-sm hover:bg-rose-600 hover:scale-110 hover:shadow-md hover:z-10' : '',
+                            cell.type === 'assigned' && cell.live_status === 'offline' ? 'bg-rose-950/30 dark:bg-rose-950/50 text-rose-300/80 border border-dashed border-rose-500/50 hover:bg-rose-900 hover:scale-110 hover:shadow-md hover:z-10' : '',
+                            cell.type === 'assigned' && cell.live_status === 'unverified' && !cell.is_live ? 'bg-rose-600 text-white border border-rose-700 font-semibold hover:bg-rose-700 hover:scale-110 hover:shadow-md hover:z-10' : '',
+                            cell.type === 'unregistered_active' ? 'bg-amber-500 text-surface-950 border-2 border-amber-300 font-black shadow-md animate-pulse hover:bg-amber-400 hover:scale-110 hover:shadow-lg hover:z-10' : '',
+                            cell.type === 'gateway' ? 'bg-blue-600 text-white border border-blue-400 font-bold hover:bg-blue-500 hover:scale-110 hover:shadow-md hover:z-10' : '',
+                            (cell.type === 'network' || cell.type === 'broadcast') ? 'bg-slate-300 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-400 dark:border-slate-700 opacity-70 cursor-not-allowed' : '',
                         ]"
-                        v-tooltip.top="`${cell.ip} | ${cell.assignment ? cell.assignment.device + ' (' + cell.assignment.kategori + ')' : cell.type.toUpperCase()}`"
+                        v-tooltip.top="`${cell.ip} | ${cell.assignment ? cell.assignment.device + ' (' + (cell.assignment.kategori || 'Device') + ') [' + (cell.live_status === 'online' ? 'ONLINE' : cell.live_status === 'offline' ? 'OFFLINE' : 'STATUS TERDAFTAR') + ']' : (cell.type === 'unregistered_active' ? '⚠️ AKTIF DI JARINGAN (BELUM TERDAFTAR)' : cell.type === 'gateway' ? 'DEFAULT GATEWAY' : cell.type === 'network' ? 'NETWORK ADDRESS' : cell.type === 'broadcast' ? 'BROADCAST ADDRESS' : 'TERSEDIA (BEBAS / OFFLINE)')}`"
                     >
-                        <span class="text-[11px] leading-none">.{{ cell.host }}</span>
+                        <span :class="gridDensity === 'compact' ? 'text-[9.5px] leading-none font-bold' : 'text-[11px] leading-none font-semibold'">.{{ cell.host }}</span>
 
+                        <!-- Online pulsing indicator -->
                         <span
-                            v-if="cell.is_live"
-                            class="absolute top-1 right-1 w-2 h-2 rounded-full bg-sky-300 animate-ping"
+                            v-if="cell.live_status === 'online' || (cell.live_status !== 'offline' && cell.is_live)"
+                            :class="gridDensity === 'compact' ? 'top-0.5 right-0.5 w-1.5 h-1.5' : 'top-1 right-1 w-2 h-2'"
+                            class="absolute rounded-full bg-emerald-400 animate-ping"
                         ></span>
                         <span
-                            v-if="cell.is_live"
-                            class="absolute top-1 right-1 w-2 h-2 rounded-full bg-sky-400"
+                            v-if="cell.live_status === 'online' || (cell.live_status !== 'offline' && cell.is_live)"
+                            :class="gridDensity === 'compact' ? 'top-0.5 right-0.5 w-1.5 h-1.5' : 'top-1 right-1 w-2 h-2'"
+                            class="absolute rounded-full bg-emerald-500"
                         ></span>
 
-                        <span v-if="cell.type === 'gateway'" class="text-[9px] mt-0.5 opacity-80">GW</span>
+                        <!-- Offline badge -->
+                        <span
+                            v-if="cell.type === 'assigned' && cell.live_status === 'offline'"
+                            :class="gridDensity === 'compact' ? 'top-0.5 right-0.5 w-1 h-1' : 'top-1 right-1 w-1.5 h-1.5'"
+                            class="absolute rounded-full bg-slate-400"
+                        ></span>
+
+                        <!-- Text badges -->
+                        <span v-if="cell.type === 'unregistered_active'" :class="gridDensity === 'compact' ? 'text-[6.5px] mt-0.5 px-0.5' : 'text-[8px] mt-0.5 px-1'" class="tracking-tighter uppercase font-black bg-surface-950 text-amber-300 rounded leading-none">! AKTIF</span>
+                        <span v-else-if="cell.type === 'gateway'" :class="gridDensity === 'compact' ? 'text-[7px] mt-0.5' : 'text-[9px] mt-0.5'" class="opacity-90 font-black leading-none">GW</span>
+                        <span v-else-if="cell.type === 'network'" :class="gridDensity === 'compact' ? 'text-[6.5px] mt-0.5' : 'text-[8px] mt-0.5'" class="opacity-70 uppercase font-bold leading-none">NET</span>
+                        <span v-else-if="cell.type === 'broadcast'" :class="gridDensity === 'compact' ? 'text-[6.5px] mt-0.5' : 'text-[8px] mt-0.5'" class="opacity-70 uppercase font-bold leading-none">BC</span>
+                        <span v-else-if="cell.type === 'assigned' && cell.live_status === 'offline'" :class="gridDensity === 'compact' ? 'text-[6.5px] mt-0.5' : 'text-[8px] mt-0.5'" class="opacity-70 uppercase font-medium leading-none">OFF</span>
+                        <span v-else-if="cell.type === 'assigned' && cell.live_status === 'online'" :class="gridDensity === 'compact' ? 'text-[6.5px] mt-0.5' : 'text-[8px] mt-0.5'" class="opacity-90 uppercase font-bold leading-none">ON</span>
                     </div>
                 </div>
 
@@ -1226,6 +1544,12 @@ const stop = (ip) => {
                         <template #body="{ data }">
                             <div class="flex items-center gap-2">
                                 <span class="font-mono font-bold text-primary">{{ data.ip }}</span>
+                                <span
+                                    v-if="data.is_gateway"
+                                    class="px-1.5 py-0.5 text-[9px] font-bold rounded bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                                >
+                                    GW
+                                </span>
                                 <span
                                     v-if="data.is_live"
                                     class="px-1.5 py-0.5 text-[9px] font-bold rounded bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300"
@@ -1311,61 +1635,83 @@ const stop = (ip) => {
     <!-- ==================================================== -->
     <div v-show="activeTab === 'router'" class="space-y-6">
 
-        <!-- KONSUMSI BANDWIDTH ANALYTICS CARDS -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <!-- Hari Ini (Today) -->
-            <div class="p-5 bg-surface-0 dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700/60 shadow-sm flex flex-col justify-between transition-colors">
-                <div class="flex items-center justify-between mb-2">
-                    <span class="text-xs font-semibold uppercase tracking-wider text-muted-color">Konsumsi Bandwidth Hari Ini</span>
-                    <span class="p-2 rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400 text-lg">
-                        <i class="pi pi-calendar"></i>
+        <!-- TOTAL AGGREGATE BANDWIDTH CONSUMPTION CARDS -->
+        <div class="p-4 bg-surface-50 dark:bg-surface-900/40 rounded-2xl border border-surface-200/80 dark:border-surface-700">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                <div class="flex items-center gap-2.5">
+                    <span class="p-2 rounded-xl bg-primary/10 text-primary">
+                        <i class="pi pi-chart-pie text-lg"></i>
                     </span>
+                    <div>
+                        <h3 class="font-bold text-sm text-surface-900 dark:text-surface-0">Total Konsumsi Seluruh Router (Agregat)</h3>
+                        <p class="text-xs text-muted-color">Akumulasi pemakaian bandwidth gabungan dari semua router MikroTik yang aktif.</p>
+                    </div>
                 </div>
-                <h3 class="text-3xl font-black text-surface-900 dark:text-surface-0 mt-1">
-                    {{ consumptionStats.today?.formatted || '0 B' }}
-                </h3>
-                <div class="mt-4 pt-3 border-t border-surface-100 dark:border-surface-700/60 flex items-center justify-between text-xs">
-                    <span class="text-cyan-600 dark:text-cyan-400 font-medium">⬇️ Rx: {{ consumptionStats.today?.rx_fmt || '0 B' }}</span>
-                    <span class="text-pink-600 dark:text-pink-400 font-medium">⬆️ Tx: {{ consumptionStats.today?.tx_fmt || '0 B' }}</span>
-                </div>
+                <Button
+                    label="Kelola Router"
+                    icon="pi pi-cog"
+                    severity="secondary"
+                    outlined
+                    class="p-button-sm text-xs"
+                    @click="routerManagerDialog = true"
+                />
             </div>
 
-            <!-- Mingguan (This Week) -->
-            <div class="p-5 bg-surface-0 dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700/60 shadow-sm flex flex-col justify-between transition-colors">
-                <div class="flex items-center justify-between mb-2">
-                    <span class="text-xs font-semibold uppercase tracking-wider text-muted-color">Konsumsi Minggu Ini (7 Hari)</span>
-                    <span class="p-2 rounded-lg bg-purple-50 text-purple-600 dark:bg-purple-500/20 dark:text-purple-400 text-lg">
-                        <i class="pi pi-chart-bar"></i>
-                    </span>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <!-- Hari Ini (Today Total) -->
+                <div class="p-4 bg-surface-0 dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700/60 shadow-xs flex flex-col justify-between transition-colors">
+                    <div class="flex items-center justify-between mb-1.5">
+                        <span class="text-[11px] font-semibold uppercase tracking-wider text-muted-color">Total Hari Ini</span>
+                        <span class="p-1.5 rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400 text-sm">
+                            <i class="pi pi-calendar"></i>
+                        </span>
+                    </div>
+                    <h3 class="text-2xl font-black text-surface-900 dark:text-surface-0">
+                        {{ totalConsumption.today.formatted }}
+                    </h3>
+                    <div class="mt-3 pt-2 border-t border-surface-100 dark:border-surface-700/60 flex items-center justify-between text-xs">
+                        <span class="text-cyan-600 dark:text-cyan-400 font-medium">⬇️ Rx: {{ totalConsumption.today.rx_fmt }}</span>
+                        <span class="text-pink-600 dark:text-pink-400 font-medium">⬆️ Tx: {{ totalConsumption.today.tx_fmt }}</span>
+                    </div>
                 </div>
-                <h3 class="text-3xl font-black text-surface-900 dark:text-surface-0 mt-1">
-                    {{ consumptionStats.weekly?.formatted || '0 B' }}
-                </h3>
-                <div class="mt-4 pt-3 border-t border-surface-100 dark:border-surface-700/60 flex items-center justify-between text-xs">
-                    <span class="text-cyan-600 dark:text-cyan-400 font-medium">⬇️ Rx: {{ consumptionStats.weekly?.rx_fmt || '0 B' }}</span>
-                    <span class="text-pink-600 dark:text-pink-400 font-medium">⬆️ Tx: {{ consumptionStats.weekly?.tx_fmt || '0 B' }}</span>
-                </div>
-            </div>
 
-            <!-- Bulanan (This Month) -->
-            <div class="p-5 bg-surface-0 dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700/60 shadow-sm flex flex-col justify-between transition-colors">
-                <div class="flex items-center justify-between mb-2">
-                    <span class="text-xs font-semibold uppercase tracking-wider text-muted-color">Konsumsi Bulan Ini (30 Hari)</span>
-                    <span class="p-2 rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 text-lg">
-                        <i class="pi pi-database"></i>
-                    </span>
+                <!-- Mingguan (Weekly Total) -->
+                <div class="p-4 bg-surface-0 dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700/60 shadow-xs flex flex-col justify-between transition-colors">
+                    <div class="flex items-center justify-between mb-1.5">
+                        <span class="text-[11px] font-semibold uppercase tracking-wider text-muted-color">Total Minggu Ini (7 Hari)</span>
+                        <span class="p-1.5 rounded-lg bg-purple-50 text-purple-600 dark:bg-purple-500/20 dark:text-purple-400 text-sm">
+                            <i class="pi pi-chart-bar"></i>
+                        </span>
+                    </div>
+                    <h3 class="text-2xl font-black text-surface-900 dark:text-surface-0">
+                        {{ totalConsumption.weekly.formatted }}
+                    </h3>
+                    <div class="mt-3 pt-2 border-t border-surface-100 dark:border-surface-700/60 flex items-center justify-between text-xs">
+                        <span class="text-cyan-600 dark:text-cyan-400 font-medium">⬇️ Rx: {{ totalConsumption.weekly.rx_fmt }}</span>
+                        <span class="text-pink-600 dark:text-pink-400 font-medium">⬆️ Tx: {{ totalConsumption.weekly.tx_fmt }}</span>
+                    </div>
                 </div>
-                <h3 class="text-3xl font-black text-surface-900 dark:text-surface-0 mt-1">
-                    {{ consumptionStats.monthly?.formatted || '0 B' }}
-                </h3>
-                <div class="mt-4 pt-3 border-t border-surface-100 dark:border-surface-700/60 flex items-center justify-between text-xs">
-                    <span class="text-cyan-600 dark:text-cyan-400 font-medium">⬇️ Rx: {{ consumptionStats.monthly?.rx_fmt || '0 B' }}</span>
-                    <span class="text-pink-600 dark:text-pink-400 font-medium">⬆️ Tx: {{ consumptionStats.monthly?.tx_fmt || '0 B' }}</span>
+
+                <!-- Bulanan (Monthly Total) -->
+                <div class="p-4 bg-surface-0 dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700/60 shadow-xs flex flex-col justify-between transition-colors">
+                    <div class="flex items-center justify-between mb-1.5">
+                        <span class="text-[11px] font-semibold uppercase tracking-wider text-muted-color">Total Bulan Ini (30 Hari)</span>
+                        <span class="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 text-sm">
+                            <i class="pi pi-database"></i>
+                        </span>
+                    </div>
+                    <h3 class="text-2xl font-black text-surface-900 dark:text-surface-0">
+                        {{ totalConsumption.monthly.formatted }}
+                    </h3>
+                    <div class="mt-3 pt-2 border-t border-surface-100 dark:border-surface-700/60 flex items-center justify-between text-xs">
+                        <span class="text-cyan-600 dark:text-cyan-400 font-medium">⬇️ Rx: {{ totalConsumption.monthly.rx_fmt }}</span>
+                        <span class="text-pink-600 dark:text-pink-400 font-medium">⬆️ Tx: {{ totalConsumption.monthly.tx_fmt }}</span>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- REAL-TIME TRAFFIC & INTERFACE MONITORING CARD -->
+        <!-- REAL-TIME TRAFFIC & PER-ROUTER MONITORING CARDS -->
         <div class="grid grid-cols-1 gap-6">
             <Card v-for="(list, l) in lists" :key="l" class="shadow-sm border border-surface-200 dark:border-surface-700">
                 <template #content>
@@ -1383,19 +1729,19 @@ const stop = (ip) => {
                         <div v-if="list" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 p-4 bg-surface-50 dark:bg-surface-900/50 rounded-xl mb-4 border border-surface-200/80 dark:border-surface-700">
                             <div>
                                 <span class="text-[11px] uppercase tracking-wider text-muted-color">Uptime</span>
-                                <p class="font-semibold text-xs text-surface-900 dark:text-surface-0 mt-0.5">{{ uptime || '-' }}</p>
+                                <p class="font-semibold text-xs text-surface-900 dark:text-surface-0 mt-0.5">{{ getRouterState(list.id)?.uptime || '-' }}</p>
                             </div>
                             <div>
                                 <span class="text-[11px] uppercase tracking-wider text-muted-color">CPU Load</span>
-                                <p class="font-semibold text-xs text-surface-900 dark:text-surface-0 mt-0.5">{{ cpu }}%</p>
+                                <p class="font-semibold text-xs text-surface-900 dark:text-surface-0 mt-0.5">{{ getRouterState(list.id)?.cpu ?? 0 }}%</p>
                             </div>
                             <div>
                                 <span class="text-[11px] uppercase tracking-wider text-muted-color">Free RAM</span>
-                                <p class="font-semibold text-xs text-surface-900 dark:text-surface-0 mt-0.5">{{ memory || '-' }}</p>
+                                <p class="font-semibold text-xs text-surface-900 dark:text-surface-0 mt-0.5">{{ getRouterState(list.id)?.memory || '-' }}</p>
                             </div>
                             <div>
                                 <span class="text-[11px] uppercase tracking-wider text-muted-color">Free HDD</span>
-                                <p class="font-semibold text-xs text-surface-900 dark:text-surface-0 mt-0.5">{{ disk || '-' }}</p>
+                                <p class="font-semibold text-xs text-surface-900 dark:text-surface-0 mt-0.5">{{ getRouterState(list.id)?.disk || '-' }}</p>
                             </div>
                             <div>
                                 <span class="text-[11px] uppercase tracking-wider text-muted-color">Total IP Host</span>
@@ -1414,11 +1760,83 @@ const stop = (ip) => {
                             </div>
                         </div>
 
-                        <!-- Real-time Live Bandwidth Speed Gauges -->
+                        <!-- KONSUMSI BANDWIDTH TIAP ROUTER (Hari Ini, Minggu Ini, Bulan Ini) -->
+                        <div v-if="list" class="mb-4">
+                            <div class="flex items-center gap-2 mb-2">
+                                <i class="pi pi-chart-line text-xs text-primary"></i>
+                                <span class="text-xs font-bold uppercase tracking-wider text-surface-900 dark:text-surface-0">
+                                    Konsumsi Bandwidth: {{ list.name }}
+                                </span>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <!-- Hari Ini Router Ini -->
+                                <div class="p-3.5 bg-surface-50/80 dark:bg-surface-900/60 rounded-xl border border-surface-200/80 dark:border-surface-700/80 shadow-xs flex flex-col justify-between">
+                                    <div class="flex items-center justify-between mb-1">
+                                        <span class="text-[11px] font-semibold uppercase tracking-wider text-muted-color">Hari Ini</span>
+                                        <span class="p-1 rounded bg-blue-50 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400 text-xs">
+                                            <i class="pi pi-calendar"></i>
+                                        </span>
+                                    </div>
+                                    <div class="text-2xl font-black text-surface-900 dark:text-surface-0">
+                                        {{ getRouterState(list.id)?.consumption?.today?.formatted || '0 B' }}
+                                    </div>
+                                    <div class="mt-2.5 pt-2 border-t border-surface-200/60 dark:border-surface-700/60 flex items-center justify-between text-[11px]">
+                                        <span class="text-cyan-600 dark:text-cyan-400 font-medium">⬇️ Rx: {{ getRouterState(list.id)?.consumption?.today?.rx_fmt || '0 B' }}</span>
+                                        <span class="text-pink-600 dark:text-pink-400 font-medium">⬆️ Tx: {{ getRouterState(list.id)?.consumption?.today?.tx_fmt || '0 B' }}</span>
+                                    </div>
+                                </div>
+
+                                <!-- Mingguan Router Ini -->
+                                <div class="p-3.5 bg-surface-50/80 dark:bg-surface-900/60 rounded-xl border border-surface-200/80 dark:border-surface-700/80 shadow-xs flex flex-col justify-between">
+                                    <div class="flex items-center justify-between mb-1">
+                                        <span class="text-[11px] font-semibold uppercase tracking-wider text-muted-color">Minggu Ini (7 Hari)</span>
+                                        <span class="p-1 rounded bg-purple-50 text-purple-600 dark:bg-purple-500/20 dark:text-purple-400 text-xs">
+                                            <i class="pi pi-chart-bar"></i>
+                                        </span>
+                                    </div>
+                                    <div class="text-2xl font-black text-surface-900 dark:text-surface-0">
+                                        {{ getRouterState(list.id)?.consumption?.weekly?.formatted || '0 B' }}
+                                    </div>
+                                    <div class="mt-2.5 pt-2 border-t border-surface-200/60 dark:border-surface-700/60 flex items-center justify-between text-[11px]">
+                                        <span class="text-cyan-600 dark:text-cyan-400 font-medium">⬇️ Rx: {{ getRouterState(list.id)?.consumption?.weekly?.rx_fmt || '0 B' }}</span>
+                                        <span class="text-pink-600 dark:text-pink-400 font-medium">⬆️ Tx: {{ getRouterState(list.id)?.consumption?.weekly?.tx_fmt || '0 B' }}</span>
+                                    </div>
+                                </div>
+
+                                <!-- Bulanan Router Ini -->
+                                <div class="p-3.5 bg-surface-50/80 dark:bg-surface-900/60 rounded-xl border border-surface-200/80 dark:border-surface-700/80 shadow-xs flex flex-col justify-between">
+                                    <div class="flex items-center justify-between mb-1">
+                                        <span class="text-[11px] font-semibold uppercase tracking-wider text-muted-color">Bulan Ini (30 Hari)</span>
+                                        <span class="p-1 rounded bg-emerald-50 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 text-xs">
+                                            <i class="pi pi-database"></i>
+                                        </span>
+                                    </div>
+                                    <div class="text-2xl font-black text-surface-900 dark:text-surface-0">
+                                        {{ getRouterState(list.id)?.consumption?.monthly?.formatted || '0 B' }}
+                                    </div>
+                                    <div class="mt-2.5 pt-2 border-t border-surface-200/60 dark:border-surface-700/60 flex items-center justify-between text-[11px]">
+                                        <span class="text-cyan-600 dark:text-cyan-400 font-medium">⬇️ Rx: {{ getRouterState(list.id)?.consumption?.monthly?.rx_fmt || '0 B' }}</span>
+                                        <span class="text-pink-600 dark:text-pink-400 font-medium">⬆️ Tx: {{ getRouterState(list.id)?.consumption?.monthly?.tx_fmt || '0 B' }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Real-time Live Bandwidth Speed Gauges & Interface Selection -->
                         <div v-if="list" class="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-surface-50 dark:bg-surface-900/40 rounded-xl mb-4 border border-surface-200/80 dark:border-surface-700">
                             <div class="flex items-center gap-3">
                                 <span class="text-sm font-semibold text-surface-900 dark:text-surface-0">Pilih Interface:</span>
-                                <SplitButton :label="ethernet || 'Pilih Port'" :model="itemLists" text class="p-button-sm"></SplitButton>
+                                <SplitButton
+                                    :label="getRouterState(list.id)?.selectedInterface || 'Pilih Port'"
+                                    :model="getRouterState(list.id)?.menuItems || []"
+                                    text
+                                    class="p-button-sm font-semibold"
+                                />
+                                <Tag
+                                    :value="isInterfaceRunning(list.id) ? 'LINK UP (AKTIF)' : 'NO CARRIER'"
+                                    :severity="isInterfaceRunning(list.id) ? 'success' : 'secondary'"
+                                    rounded
+                                />
                             </div>
 
                             <div class="flex items-center gap-6">
@@ -1429,7 +1847,7 @@ const stop = (ip) => {
                                     </div>
                                     <div>
                                         <span class="text-[11px] uppercase tracking-wider font-semibold text-cyan-600 dark:text-cyan-400">Downstream (Rx)</span>
-                                        <h4 class="text-xl font-black text-surface-900 dark:text-surface-0">{{ currentLiveRx }}</h4>
+                                        <h4 class="text-xl font-black text-surface-900 dark:text-surface-0">{{ getRouterState(list.id)?.rxFmt || '0 B/s' }}</h4>
                                     </div>
                                 </div>
 
@@ -1440,7 +1858,7 @@ const stop = (ip) => {
                                     </div>
                                     <div>
                                         <span class="text-[11px] uppercase tracking-wider font-semibold text-pink-600 dark:text-pink-400">Upstream (Tx)</span>
-                                        <h4 class="text-xl font-black text-surface-900 dark:text-surface-0">{{ currentLiveTx }}</h4>
+                                        <h4 class="text-xl font-black text-surface-900 dark:text-surface-0">{{ getRouterState(list.id)?.txFmt || '0 B/s' }}</h4>
                                     </div>
                                 </div>
                             </div>
@@ -1448,8 +1866,8 @@ const stop = (ip) => {
 
                         <!-- Real-Time ECharts Live Area Graph -->
                         <div v-if="list" class="w-full">
-                            <div class="echart-container">
-                                <div :ref="el => setChartRef(el, l)" class="chart"></div>
+                            <div class="echart-container bg-surface-0 dark:bg-surface-800 border border-surface-200 dark:border-surface-700">
+                                <div :ref="el => setChartRef(el, l)" class="chart" style="width: 100%; height: 420px; min-height: 320px;"></div>
                             </div>
                         </div>
 
@@ -1668,19 +2086,80 @@ const stop = (ip) => {
         :breakpoints="{ '640px': '90vw' }"
     >
         <div v-if="selectedCell" class="space-y-4 pt-2">
-            <div class="flex items-center justify-between p-3 rounded-lg bg-surface-100 dark:bg-surface-800">
+            <div class="flex items-center justify-between p-3 rounded-xl bg-surface-100 dark:bg-surface-800">
                 <div>
                     <span class="text-xs text-muted-color">Host IP:</span>
                     <h4 class="font-mono text-lg font-bold text-surface-900 dark:text-surface-0">{{ selectedCell.ip }}</h4>
                 </div>
-                <Tag
-                    :value="selectedCell.type.toUpperCase()"
-                    :severity="
-                        selectedCell.type === 'available' ? 'success' :
-                        selectedCell.type === 'assigned' ? 'danger' :
-                        selectedCell.type === 'gateway' ? 'warn' : 'secondary'
-                    "
-                />
+                <div class="flex flex-wrap items-center gap-2">
+                    <Tag
+                        v-if="selectedCell.live_status && selectedCell.live_status !== 'unverified'"
+                        :value="selectedCell.live_status === 'online' ? '🟢 ONLINE (REPLY)' : '⚪ OFFLINE (RTO)'"
+                        :severity="selectedCell.live_status === 'online' ? 'success' : 'secondary'"
+                    />
+                    <Tag
+                        :value="selectedCell.type === 'unregistered_active' ? '⚠️ AKTIF (BELUM DICATAT)' : selectedCell.type.toUpperCase()"
+                        :severity="
+                            selectedCell.type === 'available' ? 'success' :
+                            selectedCell.type === 'assigned' ? 'danger' :
+                            selectedCell.type === 'unregistered_active' ? 'warn' :
+                            selectedCell.type === 'gateway' ? 'info' : 'secondary'
+                        "
+                    />
+                </div>
+            </div>
+
+            <!-- Contextual Status Alert Banners -->
+            <div
+                v-if="selectedCell.type === 'unregistered_active'"
+                class="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60 rounded-xl flex items-start gap-3 text-xs text-amber-900 dark:text-amber-200"
+            >
+                <i class="pi pi-exclamation-triangle text-base text-amber-600 dark:text-amber-400 mt-0.5"></i>
+                <div>
+                    <span class="font-bold">Host Liar / Aktif Ditemukan:</span>
+                    <p class="mt-0.5 leading-relaxed">
+                        IP ini aktif merespon ICMP ping saat audit live subnet, namun belum tercatat di database IPAM. Anda dapat langsung melengkapi data formulir di bawah untuk mendaftarkannya secara resmi.
+                    </p>
+                </div>
+            </div>
+
+            <div
+                v-else-if="selectedCell.type === 'assigned' && selectedCell.live_status === 'offline'"
+                class="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-700/60 rounded-xl flex items-start gap-3 text-xs text-rose-900 dark:text-rose-200"
+            >
+                <i class="pi pi-info-circle text-base text-rose-600 dark:text-rose-400 mt-0.5"></i>
+                <div>
+                    <span class="font-bold">Perangkat Terdaftar Tidak Merespon (Offline / RTO):</span>
+                    <p class="mt-0.5 leading-relaxed">
+                        IP ini dialokasikan ke <b>{{ selectedCell.assignment?.device }}</b>, namun tidak membalas ICMP ping saat audit terakhir. Perangkat mungkin sedang mati, terputus, atau firewall-nya memblokir ICMP.
+                    </p>
+                </div>
+            </div>
+
+            <div
+                v-else-if="selectedCell.type === 'assigned' && (selectedCell.live_status === 'online' || selectedCell.is_live)"
+                class="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700/60 rounded-xl flex items-start gap-3 text-xs text-emerald-900 dark:text-emerald-200"
+            >
+                <i class="pi pi-check-circle text-base text-emerald-600 dark:text-emerald-400 mt-0.5"></i>
+                <div>
+                    <span class="font-bold">Perangkat Terdaftar & Aktif (Online):</span>
+                    <p class="mt-0.5 leading-relaxed">
+                        IP ini dialokasikan ke <b>{{ selectedCell.assignment?.device }}</b> dan merespon ICMP ping secara normal di jaringan fisik.
+                    </p>
+                </div>
+            </div>
+
+            <div
+                v-else-if="selectedCell.type === 'available'"
+                class="p-3 bg-surface-100 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl flex items-start gap-3 text-xs text-surface-700 dark:text-surface-300"
+            >
+                <i class="pi pi-shield text-base text-emerald-600 dark:text-emerald-400 mt-0.5"></i>
+                <div>
+                    <span class="font-bold">IP Tersedia (Bebas / Bersih):</span>
+                    <p class="mt-0.5 leading-relaxed">
+                        IP ini belum dialokasikan dan tidak ada perangkat yang merespon pada alamat ini. Siap digunakan untuk perangkat baru.
+                    </p>
+                </div>
             </div>
 
             <div v-if="selectedCell.assignment && !isEditing" class="space-y-3">
